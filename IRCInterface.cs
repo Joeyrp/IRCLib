@@ -30,7 +30,7 @@ namespace OldIRC
         StreamWriter outputStream;
         string server = "irc.speedrunslive.com";
         int port = 6667;
-        string nick = "BelTest";
+        string nick = "guruofreason";
         volatile bool disconnect = false;
 
         Thread thread;
@@ -90,10 +90,11 @@ namespace OldIRC
             inputStream = new StreamReader(client.GetStream());
             outputStream = new StreamWriter(client.GetStream());
 
-
-            outputStream.WriteLine("USER 0 " + nick + " * :test");
+            outputStream.WriteLine("PASS go321kickit");
             outputStream.Flush();
             outputStream.WriteLine("NICK " + nick);
+            outputStream.Flush();
+            outputStream.WriteLine("USER 0 " + nick + " * :test");
             outputStream.Flush();
             
 

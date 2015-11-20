@@ -1,5 +1,5 @@
 ﻿/***************************************************************
-*   IRCInterpreter.cs - Turns the raw output of IRCLib into
+*   IRCClient.cs - Turns the raw output of IRCServer into
 *                       more convient events.
 ****************************************************************/
 using System;
@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace IRCLib
 {
-    class IRCInterpreter
+    class IRCClient
     {
     }
 }

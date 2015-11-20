@@ -1,11 +1,12 @@
 ﻿/***************************************************************
-*   IRCLib.cs - Maintains a connection to an irc server and 
-*               provides acces to the raw data coming from                                                
-*               the server.
+*   IRCServer.cs - Maintains a connection to an irc server and 
+*               provides access to the raw response data coming
+*               from the server.
 ****************************************************************/
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -19,93 +20,189 @@ namespace IRCLib
     {
         public string serverAddress;
         public int port = 6667;
-        public string nick = ""; 
+        public string nick = "";
+        public string password = ""; 
     }
 
+    /// <summary>
+    /// Handles a connection to a single IRC server. PING messages are responded to automatically.
+    /// </summary>
     class IRCServer
     {
         TcpClient tcpClient = null;
-        StreamReader inputStream;
+        // StreamReader inputStream;
+        IRCInputStream inputStream;
         StreamWriter outputStream;
         ConnectionInfo connectionInfo;
         volatile bool connected = false;
+        int bufferLimit = 1000000;  // ~1MB
         string serverResponseBuffer = "";
 
         #region PROPERTIES
-        /// <summary>
-        /// May Block. Use TryGetConnectionInfo to avoid blocking if the ConnectionInfo is unavailable.
-        /// </summary>
         public ConnectionInfo ConnectionInfo
         {
             get { return connectionInfo; }
             set { }
         }
+
+        public bool IsConnected
+        {
+            get { return connected; }
+            set { }
+        }
+
+        public string MessageBuffer
+        {
+            get { return serverResponseBuffer; }
+            set { }
+        }
         #endregion
 
-        Mutex connectionInfoMutex;
-        Mutex responseBuferMutex;
-        Mutex outputStreamMutex;
-        Thread connectionThread;
+        //Mutex connectionInfoMutex;
+        //Mutex responseBuferMutex;
+        //Mutex outputStreamMutex;
+        //Thread connectionThread;
 
-        public bool Connect(string _serverAddress, int _port, string _nick)
+        /// <summary>
+        /// Attempt to connect to the given server.
+        /// </summary>
+        /// <param name="_serverAddress">eg. irc.speedrunslive.com</param>
+        /// <param name="_port">usually 6667</param>
+        /// <param name="_nick">your nick</param>
+        /// <param name="_password">your password. This can be empty if the server uses nickserv.</param>
+        /// <returns>true if the connection is successful. If false if there is already a connection if the connection failed. 
+        /// There may be more info in the log file.</returns>
+        public bool Connect(string _serverAddress, int _port, string _nick, string _password)
         {
             if (connected)
                 return false;
-            
+
             connectionInfo = new ConnectionInfo();
             connectionInfo.serverAddress = _serverAddress;
             connectionInfo.port = _port;
             connectionInfo.nick = _nick;
+            connectionInfo.password = _password;
 
-            connectionInfoMutex = new Mutex();
-            responseBuferMutex = new Mutex();
-            outputStreamMutex = new Mutex();
-            connectionThread = new Thread(Connection);
 
-            try
+            tcpClient = new TcpClient(connectionInfo.serverAddress, connectionInfo.port);
+
+            if (tcpClient == null || !tcpClient.Connected)
             {
-                connectionThread.Start();
+                DebugLogger.LogLine("Could not create tcp client or connection failed.");
+                return false;
             }
-            catch (Exception e)
-            {
-                DebugLogger.LogLine("Error in the Connection thread: " + e.Message);
+
+            inputStream = new IRCInputStream();
+            inputStream.InitReader(new StreamReader(tcpClient.GetStream()));
+            outputStream = new StreamWriter(tcpClient.GetStream());
+
+            if (connectionInfo.password != "")
+            { 
+                outputStream.WriteLine("PASS " + connectionInfo.password);
+                outputStream.Flush();
             }
+
+            outputStream.WriteLine("NICK " + connectionInfo.nick);
+            outputStream.Flush();
+            outputStream.WriteLine("USER 0 " + connectionInfo.nick + " * :Belthasar");
+            outputStream.Flush();
 
             connected = true;
             return true;
         }
         
+        /// <summary>
+        /// Peace out server.
+        /// </summary>
+        public void Disconnect()
+        {
+            if (!connected)
+                return;
 
+            outputStream.WriteLine("QUIT");
+            outputStream.Flush();
+
+            tcpClient = null;
+            connected = false;
+        }
 
         /// <summary>
-        /// Runs the server connection loop on its own thread.
+        /// Clears the buffer that stores responses from the server.
         /// </summary>
-        private void Connection()
+        public void ClearMessageBuffer()
         {
-            if (connectionInfoMutex.WaitOne(15000))
-            {
-                tcpClient = new TcpClient(connectionInfo.serverAddress, connectionInfo.port);
+            DebugLogger.LogLine("ClearMessageBuffer called by " + new StackTrace().GetFrame(1));
+            serverResponseBuffer = "";
+        }
 
-                connectionInfoMutex.ReleaseMutex();
+        /// <summary>
+        /// Call this method to get messages from the server. This method should be called regularly so PING message are not missed.
+        /// All server responses are stored in a buffer that can be read with MessageBuffer and cleared with ClearMessageBuffer().
+        /// </summary>
+        /// <returns>The message that was recieved from the server</returns>
+        public string PollServer()
+        {
+            if (!connected)
+            {
+                DebugLogger.LogLine("Attempt to poll the server but there is no connection.");
+                return "";
+            }
+            
+            string msg = "";
+            if (inputStream.InputAvailable())
+            {
+                msg = inputStream.ReadLine();
             }
             else
             {
-                throw new Exception("ConnectionInfoMutex unavailable");
+                return "";
             }
 
-
-            if (!tcpClient.Connected)
+            // Handle PING
+            if (msg.Contains("PING"))
             {
+               // Console.WriteLine("PING ... PONG");
 
-                throw new Exception("Could not create tcp client.");
-                //if (ConnectionEvent != null)
-                //{
-                //    ConnectionEvent(this, IRCEvent.IRC_CONNECTION_FAILED);
-                //}
-                return;
+                string response = msg.Replace("PING", "PONG");
+                outputStream.WriteLine(response);
+                outputStream.Flush();
             }
 
+            // Clear out first half of buffer if it is at the limit
+            if (serverResponseBuffer.Length >= bufferLimit)
+            {
+                // find end of first line at the half way point
+                int halfway = serverResponseBuffer.Length / 2;
+                int firstCharAfterLine = halfway;
+                while (serverResponseBuffer[firstCharAfterLine] != '\n')
+                {
+                    firstCharAfterLine++;
+                }
 
+                string oldBuffer = serverResponseBuffer;
+                serverResponseBuffer = "";
+                for (int i = firstCharAfterLine; i < oldBuffer.Length; i++)
+                {
+                    serverResponseBuffer += oldBuffer[i];
+                }
+            }
+
+            serverResponseBuffer += msg;
+
+            return msg;
+        }
+
+        /// <summary>
+        /// Sends a message to the server if there is a connection.
+        /// </summary>
+        /// <param name="message">The message to be sent.</param>
+        public void SendMessage(string message)
+        {
+            if (!connected)
+                return;
+
+            outputStream.WriteLine(message);
+            outputStream.Flush();
         }
     }
 }

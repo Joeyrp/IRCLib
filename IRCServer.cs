@@ -1,67 +1,48 @@
-﻿/***************************************************************
-*   IRCServer.cs - Maintains a connection to an irc server and 
-*               provides access to the raw response data coming
-*               from the server.
-****************************************************************/
-
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace IRCLib
-{ 
-    class ConnectionInfo
+{
+    class IRCRoom
     {
-        public string serverAddress;
-        public int port = 6667;
-        public string nick = "";
-        public string password = ""; 
+       public string roomName = "";   // NO #
+       public string roomModes = "";
+       public string roomLog = "";
+       public List<string> nickList = new List<string>();
     }
 
-    /// <summary>
-    /// Handles a connection to a single IRC server. PING messages are responded to automatically.
-    /// </summary>
     class IRCServer
     {
-        TcpClient tcpClient = null;
-        // StreamReader inputStream;
-        IRCInputStream inputStream;
-        StreamWriter outputStream;
-        ConnectionInfo connectionInfo;
-        volatile bool connected = false;
-        int bufferLimit = 1000000;  // ~1MB
-        string serverResponseBuffer = "";
+        #region DATA MEMBERS
+        IRCServerConnection connection = new IRCServerConnection();
+        List<IRCRoom> channels = new List<IRCRoom>();
+        string consoleLog = "";
+        #endregion
 
         #region PROPERTIES
         public ConnectionInfo ConnectionInfo
         {
-            get { return connectionInfo; }
+            get { return connection.ConnectionInfo; }
             set { }
         }
 
-        public bool IsConnected
+        public List<IRCRoom> Channels
         {
-            get { return connected; }
-            set { }
-        }
-
-        public string MessageBuffer
-        {
-            get { return serverResponseBuffer; }
+            get { return channels; }
             set { }
         }
         #endregion
 
-        //Mutex connectionInfoMutex;
-        //Mutex responseBuferMutex;
-        //Mutex outputStreamMutex;
-        //Thread connectionThread;
+        #region EVENTS
+        public delegate void MessageHandler(object sender, IRCMessageArgs args);
+        public event MessageHandler MessageEvent;
+
+        public delegate void ConsoleMessageHandler(object sender, IRCConsoleMsgArgs args);
+        public event ConsoleMessageHandler ConsoleMessageEvent;
+        #endregion
 
         /// <summary>
         /// Attempt to connect to the given server.
@@ -74,135 +55,259 @@ namespace IRCLib
         /// There may be more info in the log file.</returns>
         public bool Connect(string _serverAddress, int _port, string _nick, string _password)
         {
-            if (connected)
-                return false;
-
-            connectionInfo = new ConnectionInfo();
-            connectionInfo.serverAddress = _serverAddress;
-            connectionInfo.port = _port;
-            connectionInfo.nick = _nick;
-            connectionInfo.password = _password;
-
-
-            tcpClient = new TcpClient(connectionInfo.serverAddress, connectionInfo.port);
-
-            if (tcpClient == null || !tcpClient.Connected)
-            {
-                DebugLogger.LogLine("Could not create tcp client or connection failed.");
-                return false;
-            }
-
-            inputStream = new IRCInputStream();
-            inputStream.InitReader(new StreamReader(tcpClient.GetStream()));
-            outputStream = new StreamWriter(tcpClient.GetStream());
-
-            if (connectionInfo.password != "")
-            { 
-                outputStream.WriteLine("PASS " + connectionInfo.password);
-                outputStream.Flush();
-            }
-
-            outputStream.WriteLine("NICK " + connectionInfo.nick);
-            outputStream.Flush();
-            outputStream.WriteLine("USER 0 " + connectionInfo.nick + " * :Belthasar");
-            outputStream.Flush();
-
-            connected = true;
-            return true;
+            return connection.Connect(_serverAddress, _port, _nick, _password);
         }
-        
-        /// <summary>
-        /// Peace out server.
-        /// </summary>
+
         public void Disconnect()
         {
-            if (!connected)
+            if (connection.IsConnected)
+            {
+                connection.Disconnect();
+                channels.Clear();
+                consoleLog = "";
+            }
+        }
+
+        /// <summary>
+        /// Join an IRC Channel if there is a connection.
+        /// </summary>
+        /// <param name="channel">Name of the channel ('#' is optional)</param>
+        /// <returns>true if the channel was joined.</returns>
+        public bool JoinChannel(string channel)
+        {
+            if (!connection.IsConnected)
+                return false;
+
+            if (channel.StartsWith("#"))
+                channel = channel.TrimStart('#');
+
+            bool inChannel = false;
+            foreach (IRCRoom room in channels)
+            {
+                if (room.roomName == channel)
+                {
+                    inChannel = true;
+                    break;
+                }
+            }
+
+            if (inChannel)
+                return false;
+
+            IRCRoom chan = new IRCRoom();
+            chan.roomName = channel;
+            channels.Add(chan);
+
+
+            connection.SendMessage("JOIN #" + channel);
+
+            return true; 
+        }
+
+        /// <summary>
+        /// Leave an IRC channel
+        /// </summary>
+        /// <param name="channel">Name of the channel ('#' is optional)</param>
+        /// <param name="partMsg">A message to be shown on leaving.</param>
+        /// <returns>true if the channel was left</returns>
+        public bool LeaveChannel(string channel, string partMsg)
+        {
+            if (!connection.IsConnected)
+                return false;
+
+            if (channel.StartsWith("#"))
+                channel = channel.TrimStart('#');
+            
+            foreach (IRCRoom room in channels)
+            {
+                if (room.roomName == channel)
+                {
+                    channels.Remove(room);
+                    connection.SendMessage("PART #" + channel + " " + partMsg);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        /// <summary>
+        /// Gets and parses messages from the server.
+        /// This method should be called regularly or the connection may time out.
+        /// </summary>
+        public void PollServer()
+        {
+            if (!connection.IsConnected)
                 return;
 
-            outputStream.WriteLine("QUIT");
-            outputStream.Flush();
+            string msg = connection.PollServer();
 
-            tcpClient = null;
-            connected = false;
-        }
+            if ("" == msg || msg.StartsWith("PING"))
+                return;
 
-        /// <summary>
-        /// Clears the buffer that stores responses from the server.
-        /// </summary>
-        public void ClearMessageBuffer()
-        {
-            DebugLogger.LogLine("ClearMessageBuffer called by " + new StackTrace().GetFrame(1));
-            serverResponseBuffer = "";
-        }
 
-        /// <summary>
-        /// Call this method to get messages from the server. This method should be called regularly so PING message are not missed.
-        /// All server responses are stored in a buffer that can be read with MessageBuffer and cleared with ClearMessageBuffer().
-        /// </summary>
-        /// <returns>The message that was recieved from the server</returns>
-        public string PollServer()
-        {
-            if (!connected)
-            {
-                DebugLogger.LogLine("Attempt to poll the server but there is no connection.");
-                return "";
-            }
+
+            #region PARSE MESSAGE
+
+            string[] spaceSplit = msg.Split(' ');
+
+            string source = spaceSplit[0];
             
-            string msg = "";
-            if (inputStream.InputAvailable())
+            // Source will contain an "!" if this is from a user.
+            // Otherwise it's from the server.
+            if (source.Contains("!"))
             {
-                msg = inputStream.ReadLine();
+                string user = source.Split('!')[0].TrimStart(':');
+                string cmd = spaceSplit[1];
+
+                if ("PRIVMSG" == cmd)
+                {
+                    string ch = spaceSplit[2].TrimStart('#');
+                    string text = "";
+                    for (int i = 3; i < spaceSplit.Length; i++)
+                    {
+                        text += spaceSplit[i] + ' ';
+                    }
+                    text = text.TrimEnd(' ');
+                    text = text.TrimStart(':');
+
+                    foreach (IRCRoom room in channels)
+                    {
+                        if (room.roomName == ch)
+                        {
+                            room.roomLog += "\n<" + user + "> " + text;
+
+                            // EVENT MESSAGE
+                            if (MessageEvent != null)
+                            {
+                                IRCMessageArgs ma = new IRCMessageArgs();
+                                ma.channel = ch;
+                                ma.fromUser = user;
+                                ma.text = text;
+
+                                MessageEvent(this, ma);
+                            }
+                            break;
+                        }
+                    }
+                }
             }
             else
             {
-                return "";
-            }
+                // TODO: Make msg more readable before adding to console log.
+                // consoleLog += "\n" + msg;
 
-            // Handle PING
-            if (msg.Contains("PING"))
-            {
-               // Console.WriteLine("PING ... PONG");
-
-                string response = msg.Replace("PING", "PONG");
-                outputStream.WriteLine(response);
-                outputStream.Flush();
-            }
-
-            // Clear out first half of buffer if it is at the limit
-            if (serverResponseBuffer.Length >= bufferLimit)
-            {
-                // find end of first line at the half way point
-                int halfway = serverResponseBuffer.Length / 2;
-                int firstCharAfterLine = halfway;
-                while (serverResponseBuffer[firstCharAfterLine] != '\n')
+                if (source.TrimStart(':') == connection.ConnectionInfo.serverAddress)
                 {
-                    firstCharAfterLine++;
+                    int numeric = 0;
+                    string args = "";
+                    if (spaceSplit.Length < 3 || !int.TryParse(spaceSplit[1], out numeric))
+                    {
+                        DebugLogger.LogLine("Unknown server message format: " + msg);
+                        ParseNumeric(-1, msg);
+                        return;
+                    }
+
+                    for (int i = 2; i < spaceSplit.Length; i++)
+                    {
+                        args += spaceSplit[i] + ' ';
+                    }
+                    args = args.Trim(' ');
+                    ParseNumeric(numeric, args);
+                    DebugLogger.LogLine(msg);
                 }
 
-                string oldBuffer = serverResponseBuffer;
-                serverResponseBuffer = "";
-                for (int i = firstCharAfterLine; i < oldBuffer.Length; i++)
-                {
-                    serverResponseBuffer += oldBuffer[i];
-                }
             }
 
-            serverResponseBuffer += msg;
+            #endregion
 
-            return msg;
         }
+
+        private void ParseNumeric(int numeric, string args)
+        {
+            switch (numeric)
+            {
+                #region NO EXTRA ACTIONS NEEDED
+
+                case Numerics.RPL_WELCOME:
+                case Numerics.RPL_YOURHOST:
+                case Numerics.RPL_CREATED:
+                case Numerics.RPL_MYINFO:
+                {
+                    consoleLog += "\n" + args;
+
+                    if (ConsoleMessageEvent != null)
+                    {
+                        IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
+                        a.numeric = numeric;
+                        a.text = args;
+
+                        ConsoleMessageEvent(this, a);
+                    }
+                }
+                break;
+
+
+                #endregion
+
+                default:
+                {
+                    consoleLog += "\n[UNHANDLED] " + args;
+
+                    if (ConsoleMessageEvent != null)
+                    {
+                        IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
+                        a.numeric = numeric;
+                        a.text = args;
+
+                        ConsoleMessageEvent(this, a);
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    public class IRCMessageArgs
+    {
+        public string channel;
+        public string fromUser;
+        public string text;
+    }
+
+    public class IRCConsoleMsgArgs
+    {
+        public int numeric;
+        public string text;
+    }
+
+    /// <summary>
+    /// These numeric server messages are implemented unless otherwise noted.
+    /// </summary>
+    static class Numerics
+    {
+        /// <summary>
+        /// "Welcome to the Internet Relay Network
+        ///     <nick>!<user>@<host>"
+        /// </summary>
+        public const int RPL_WELCOME = 001;
 
         /// <summary>
-        /// Sends a message to the server if there is a connection.
+        /// "Your host is <servername>, running version <ver>"
         /// </summary>
-        /// <param name="message">The message to be sent.</param>
-        public void SendMessage(string message)
-        {
-            if (!connected)
-                return;
+        public const int RPL_YOURHOST = 002;
 
-            outputStream.WriteLine(message);
-            outputStream.Flush();
-        }
+        /// <summary>
+        /// "This server was created <date>"
+        /// </summary>
+        public const int RPL_CREATED = 003;
+
+        /// <summary>
+        /// "<servername> <version> <available user modes>
+        ///    <available channel modes>"
+        /// </summary>
+        public const int RPL_MYINFO = 004;
+
     }
 }

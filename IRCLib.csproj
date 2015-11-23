@@ -48,6 +48,7 @@
     <Compile Include="IRCInterface.cs" />
     <Compile Include="IRCClient.cs" />
     <Compile Include="IRCServer.cs" />
+    <Compile Include="IRCServerConnection.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

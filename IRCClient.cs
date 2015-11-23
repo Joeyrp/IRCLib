@@ -10,7 +10,15 @@ using System.Threading.Tasks;
 
 namespace IRCLib
 {
+    class IRCRoom
+    {
+        string roomName = "";   // NO #
+        string roomLog ="";
+    }
+
     class IRCClient
     {
+        List<string> rooms = new List<string>();
+
     }
 }

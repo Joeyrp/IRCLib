@@ -24,7 +24,14 @@ namespace IRCLib
             //////////////////////////////////////////////////
 
             IRCServer ircServer = new IRCServer();
-            ircServer.Connect("irc.speedrunslive.com", 6667, "BelTest", "");
+            Console.WriteLine("Connecting to irc.speedrunslive.com");
+
+            if (!ircServer.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
+            {
+                Console.WriteLine("Could not connect to the server.");
+                Console.ReadLine();
+                return;
+            }
 
 
             string command = "";

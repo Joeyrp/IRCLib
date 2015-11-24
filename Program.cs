@@ -64,14 +64,22 @@ namespace IRCLib
             #region IRCServer TEST
 
             IRCServer server = new IRCServer();
+
+            // Events
             server.ConsoleMessageEvent += ConsoleEvent;
             server.MessageEvent += MessageEvent;
+            server.TopicChangeEvent += TopicChange;
+            server.ShowTopicEvent += ShowTopic;
+            server.NamesEvent += NamesList;
+
+            // Connect
             if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
             {
                 DebugLogger.LogLine("Couldn't connect to the server.");
                 return;
             }
 
+            // Command loop
             string command = "";
             int logLines = 0;
             do
@@ -86,8 +94,15 @@ namespace IRCLib
                             Console.WriteLine("* Joined channel: #" + command.Split('#')[1]);
                         }
                     }
+                    else
+                    {
+                        server.SendRawCommand(command);
+                    }
                 }
 
+                #region NOT RECOMMENDED
+                // Possible way to get messages from a channel.
+                // Handling events is recommended over this however.
                 //if (server.Channels.Count > 0)
                 //{
                 //    string[] lines = server.Channels[0].roomLog.Split('\n');
@@ -102,6 +117,7 @@ namespace IRCLib
                 //        logLines = newLines;
                 //    }
                 //}
+                #endregion
 
                 server.PollServer();
                 
@@ -123,6 +139,39 @@ namespace IRCLib
         static void ConsoleEvent(object sender, IRCConsoleMsgArgs args)
         {
             Console.WriteLine("*CONSOLE* " + args.numeric.ToString() + " " + args.text);
+        }
+
+        static void TopicChange(object sender, IRCTopicArgs args)
+        {
+            //string lastLine = r.roomLog.Split('\n')[r.roomLog.Split('\n').Length - 1];
+            // Console.WriteLine(lastLine);
+
+            Console.WriteLine(" * " + args.byUser + " changes topic to '" + args.topic + "'");
+        }
+
+        static void ShowTopic(object sender, IRCTopicArgs args)
+        {
+            // This event occurs in 2 parts. The first is when the date is -1. This means only the topic and channel are set.
+            // When the date is > -1 the channel, byUser, and date are set but the topic is not.
+            if (-1 == args.date)
+            {
+                Console.WriteLine(" * " + "Topic is '" + args.topic + "'");
+            }
+            else
+            {
+                DateTime epoch = new DateTime(1970, 1, 1).ToLocalTime();
+                DateTime setAt = epoch.AddSeconds(args.date).ToLocalTime();
+                Console.WriteLine(" * Topic set by " + args.byUser + " on " + setAt);
+            }
+        }
+
+        static void NamesList(object sender, IRCNamesArgs args)
+        {
+            // Not cluttering up the console with a nick list for this example.
+            // args.names is a list of names and args.channel is the channel
+            // the names are in.
+
+            Console.WriteLine(" * Nick list received!");
         }
     }
 }

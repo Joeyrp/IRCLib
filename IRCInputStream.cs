@@ -15,14 +15,13 @@ namespace IRCLib
         StreamReader reader = null;
         string buffer;
         const int bufferLimit = 1000000;    // ~1MB
-        bool open = false;
+       // bool open = false;
 
         Mutex bufferMutex = new Mutex();
         Thread readThread;
 
         public void InitReader(StreamReader r)
         {
-            open = true;
             reader = r;
             buffer = "";
             readThread = new Thread(read);
@@ -34,14 +33,12 @@ namespace IRCLib
         {
             if (bufferMutex.WaitOne(1000))
             {
-                open = false;
                 reader.Close();
 
                 bufferMutex.ReleaseMutex();
             }
             else
             {
-                open = false;
                 reader.Close();
             }
             

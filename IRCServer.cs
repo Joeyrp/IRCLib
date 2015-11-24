@@ -42,6 +42,9 @@ namespace IRCLib
         public delegate void ConsoleMessageHandler(object sender, IRCConsoleMsgArgs args);
         public delegate void TopicEventHandler(object sender, IRCTopicArgs args);
         public delegate void NamesEventHandler(object sender, IRCNamesArgs args);
+        public delegate void JoinEventHandler(object sender, IRCJoinArgs args);
+        public delegate void PartEventHandler(object sender, IRCPartArgs args);
+       // public delegate void QuitEventHandler(object sender, IRCQ args);
 
 
         /// <summary>
@@ -73,6 +76,16 @@ namespace IRCLib
         /// The server sent a list of user names in a given channel.
         /// </summary>
         public event NamesEventHandler NamesEvent;
+
+        /// <summary>
+        /// Raised when a user joins a channel.
+        /// </summary>
+        public event JoinEventHandler JoinEvent;
+
+        /// <summary>
+        /// Raised when a user leaves a channel.
+        /// </summary>
+        public event PartEventHandler PartEvent;
         #endregion
 
         /// <summary>
@@ -184,7 +197,7 @@ namespace IRCLib
                 return;
 
 
-            //DebugLogger.LogLine("CATCH ALL: " + msg);
+           // DebugLogger.LogLine("CATCH ALL: " + msg);
 
             #region PARSE MESSAGE
 
@@ -198,6 +211,57 @@ namespace IRCLib
             {
                 string user = source.Split('!')[0].TrimStart(':');
                 string cmd = spaceSplit[1];
+
+                if ("JOIN" == cmd)
+                {
+                    string ch = msg.Split('#')[1];
+                    foreach (IRCRoom room in channels)
+                    {
+                        if (room.Name == ch)
+                        {
+                            room.nickList.Add(user);
+                            if (JoinEvent != null)
+                            {
+                                IRCJoinArgs a = new IRCJoinArgs();
+                                a.channel = ch;
+                                a.user = user;
+                                JoinEvent(this, a);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if ("PART" == cmd)
+                {
+                    string ch = msg.Split('#')[1];
+                    foreach (IRCRoom room in channels)
+                    {
+                        if (room.Name == ch)
+                        {
+                            room.nickList.Remove(user);
+                            if (PartEvent != null)
+                            {
+                                IRCPartArgs a = new IRCPartArgs();
+                                a.channel = ch;
+                                a.user = user;
+                                a.partMsg = "";
+
+                                string[] s = msg.Split(':');
+                                if (s.Length > 2)
+                                    a.partMsg = s[2];
+
+                                PartEvent(this, a);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if ("QUIT" == cmd)
+                {
+
+                }
 
                 #region TOPIC
                 if ("TOPIC" == cmd)
@@ -335,7 +399,7 @@ namespace IRCLib
 
                         for (int i = 1; i < topicParts.Length; i++)
                         {
-                            a.topic += topicParts + ":";
+                            a.topic += topicParts[i] + ":";
                         }
                         a.topic = a.topic.TrimEnd(':');
 

@@ -71,6 +71,8 @@ namespace IRCLib
             server.TopicChangeEvent += TopicChange;
             server.ShowTopicEvent += ShowTopic;
             server.NamesEvent += NamesList;
+            server.JoinEvent += Join;
+            server.PartEvent += Part;
 
             // Connect
             if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
@@ -172,6 +174,21 @@ namespace IRCLib
             // the names are in.
 
             Console.WriteLine(" * Nick list received!");
+        }
+
+        static void Join(object sender, IRCJoinArgs args)
+        {
+            Console.WriteLine(" *" + args.channel + "* " + args.user + " has joined the channel");
+        }
+
+        static void Part(object sender, IRCPartArgs args)
+        {
+            string msg = "";
+            if (args.partMsg != "")
+            {
+                msg = "(" + args.partMsg + ")";
+            }
+            Console.WriteLine(" *" + args.channel + "* " + args.user + " has left the channel" + msg);
         }
     }
 }

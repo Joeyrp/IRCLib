@@ -11,8 +11,9 @@ namespace IRCLib
     {
         public string fileName = "";
         public StreamWriter streamWriter = null;
+        public bool explicitOnly = false;
         
-        public FileWriter(string _fileName, StreamWriter _writer)
+        public FileWriter(string _fileName, StreamWriter _writer, bool _explicit = false)
         {
             fileName = _fileName;
             streamWriter = _writer;
@@ -56,18 +57,18 @@ namespace IRCLib
         }
 
 
-        static public void AddLogFile(string filename)
+        static public void AddLogFile(string filename, bool _explicitOnly = false)
         {
-            logFiles.Add(new FileWriter(filename, new StreamWriter(filename, true)));
+            logFiles.Add(new FileWriter(filename, new StreamWriter(filename, true), _explicitOnly));
             //Trace.Listeners.Add(new TextWriterTraceListener(filename));
         }
 
 
-        static public void LogLine(string l, bool noTimeStamp = false)
+        static public void LogLine(string l, bool TimeStamp = true)
         {
             string line = "";
 
-            if (false == noTimeStamp)
+            if (TimeStamp)
             {
                 line = "[" + DateTime.Now + "] ";
             }
@@ -76,11 +77,38 @@ namespace IRCLib
             
             foreach (FileWriter file in logFiles)
             {
+                if (file.explicitOnly)
+                    continue;
+
                 file.streamWriter.WriteLine(line);
                 file.streamWriter.Flush();
             }
 
             buffer += line + '\n';
+        }
+
+        static public bool LogLine(string line, string file, bool TimeStamp  = true)
+        {
+            foreach (FileWriter fw in logFiles)
+            {
+                if (fw.fileName == file)
+                {
+                    string lineFinal = "";
+
+                    if (TimeStamp)
+                    {
+                        lineFinal = "[" + DateTime.Now + "] ";
+                    }
+
+                    lineFinal += line;
+
+                    fw.streamWriter.WriteLine(lineFinal);
+                    fw.streamWriter.Flush();
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

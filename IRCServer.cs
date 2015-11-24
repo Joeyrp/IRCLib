@@ -6,6 +6,11 @@ using System.Threading.Tasks;
 
 namespace IRCLib
 {
+    //public class IRCNick
+    //{
+    //    public string name;
+    //    public string modes;
+    //}
     public class IRCRoom
     {
        public string Name = "";   // NO #
@@ -44,7 +49,11 @@ namespace IRCLib
         public delegate void NamesEventHandler(object sender, IRCNamesArgs args);
         public delegate void JoinEventHandler(object sender, IRCJoinArgs args);
         public delegate void PartEventHandler(object sender, IRCPartArgs args);
-       // public delegate void QuitEventHandler(object sender, IRCQ args);
+        // public delegate void QuitEventHandler(object sender, IRCQ args);
+        public delegate void UserModeEventHandler(object sender, IRCUserModeArgs args);
+        public delegate void ChannelModeEventHandler(object sender, IRCChannelModeArgs args);
+        public delegate void ChannelCreationDateEventHandler(object sender, IRCChannelCreationArgs args);
+
 
 
         /// <summary>
@@ -86,7 +95,27 @@ namespace IRCLib
         /// Raised when a user leaves a channel.
         /// </summary>
         public event PartEventHandler PartEvent;
+
+        /// <summary>
+        /// Raised when a user mode is changed.
+        /// </summary>
+        public event UserModeEventHandler UserModeEvent;
+
+        /// <summary>
+        /// Raised when a channel mode is changed or queried. If it was a query then the settingUser will be "".
+        /// </summary>
+        public event ChannelModeEventHandler ChannelModeEvent;
+
+        /// <summary>
+        /// Raised after the channel mode was queried.
+        /// </summary>
+        public event ChannelCreationDateEventHandler ChannelCreationEvent;
         #endregion
+
+        public IRCServer()
+        {
+            DebugLogger.AddLogFile("IRCServer full log.txt", true);
+        }
 
         /// <summary>
         /// Attempt to connect to the given server.
@@ -197,7 +226,7 @@ namespace IRCLib
                 return;
 
 
-           // DebugLogger.LogLine("CATCH ALL: " + msg);
+            DebugLogger.LogLine(msg, "IRCServer full log.txt");
 
             #region PARSE MESSAGE
 
@@ -212,9 +241,57 @@ namespace IRCLib
                 string user = source.Split('!')[0].TrimStart(':');
                 string cmd = spaceSplit[1];
 
+                #region MODE
+                if ("MODE" == cmd)
+                {
+                    if (spaceSplit.Length < 5)
+                    {
+                        DebugLogger.LogLine("MODE Command with not enough arguments: " + msg, "IRCServer full log.txt");
+                        return;
+                    }
+                    string ch = GetTrimmedChannel(spaceSplit[2]);
+                    string mode = spaceSplit[3];
+                    string targetUser = spaceSplit[4];
+
+                    for (int i = 5; i < spaceSplit.Length; i++)
+                    {
+                        targetUser += " " + spaceSplit[i];
+                    }
+
+                    // Is this a channel mode?
+                    if ("" == targetUser)
+                    {
+                        if (ChannelModeEvent != null)
+                        {
+                            IRCChannelModeArgs a = new IRCChannelModeArgs();
+                            a.channel = ch;
+                            a.mode = mode;
+                            a.settingUser = user;
+                            ChannelModeEvent(this, a);
+                        }
+                    }
+                    else
+                    {
+                        SendRawCommand("NAMES #" + ch);
+                    
+                        if (UserModeEvent != null)
+                        {
+                            IRCUserModeArgs a = new IRCUserModeArgs();
+                            a.channel = ch;
+                            a.mode = mode;
+                            a.settingUser = user;
+                            a.targetUser = targetUser;
+                            UserModeEvent(this, a);
+                        }
+                    }
+                    
+                }
+                #endregion
+
+                #region JOIN PART QUIT
                 if ("JOIN" == cmd)
                 {
-                    string ch = msg.Split('#')[1];
+                    string ch = GetTrimmedChannel(spaceSplit[2]);
                     foreach (IRCRoom room in channels)
                     {
                         if (room.Name == ch)
@@ -234,7 +311,7 @@ namespace IRCLib
 
                 if ("PART" == cmd)
                 {
-                    string ch = msg.Split('#')[1];
+                    string ch = GetTrimmedChannel(spaceSplit[2]);
                     foreach (IRCRoom room in channels)
                     {
                         if (room.Name == ch)
@@ -260,13 +337,15 @@ namespace IRCLib
 
                 if ("QUIT" == cmd)
                 {
-
+                    // TODO: QUIT
                 }
+
+                #endregion
 
                 #region TOPIC
                 if ("TOPIC" == cmd)
                 {
-                    string ch = spaceSplit[2].TrimStart('#');
+                    string ch = GetTrimmedChannel(spaceSplit[2]); 
                     string text = "";
                     for (int i = 3; i < spaceSplit.Length; i++)
                     {
@@ -299,7 +378,7 @@ namespace IRCLib
                 #region PRIVMSG
                 if ("PRIVMSG" == cmd)
                 {
-                    string ch = spaceSplit[2].TrimStart('#');
+                    string ch = GetTrimmedChannel(spaceSplit[2]);
                     string text = "";
                     for (int i = 3; i < spaceSplit.Length; i++)
                     {
@@ -392,9 +471,11 @@ namespace IRCLib
                 #region SPECIAL CASES
 
                 case Numerics.RPL_TOPIC:
-                {
+                    {
+                        consoleLog += "\n" + args;
                         IRCTopicArgs a = new IRCTopicArgs();
-                        a.channel = args.Split('#')[1].Split(' ')[0];
+                        //a.channel = args.Split('#')[1].Split(' ')[0];
+                        a.channel = GetTrimmedChannel(args.Split(' ')[1]);
                         string[] topicParts = args.Split(':');
 
                         for (int i = 1; i < topicParts.Length; i++)
@@ -415,13 +496,14 @@ namespace IRCLib
                 break;
 
                 case Numerics.RPL_TOPICP2:
-                {
+                    {
+                        consoleLog += "\n" + args;
                         IRCTopicArgs a = new IRCTopicArgs();
-                        a.channel = args.Split('#')[1].Split(' ')[0];
+                        a.channel = GetTrimmedChannel(args.Split(' ')[1]);
                         a.topic = "";
                         a.byUser = args.Split('#')[1].Split(' ')[1];
 
-                        if (!long.TryParse(args.Split('#')[1].Split(' ')[2], out a.date))
+                        if (!long.TryParse(args.Split(' ')[3], out a.date))
                         {
                             DebugLogger.LogLine("Couldn't parse the date the topic was set in channel: #" + a.channel);
                             return;
@@ -435,15 +517,18 @@ namespace IRCLib
                 break;
 
                 case Numerics.RPL_NAMREPLY:
-                {
+                    {
+                        consoleLog += "\n" + args;
                         IRCNamesArgs a = new IRCNamesArgs();
-                        a.channel = args.Split('#')[1].Split(' ')[0];
+                        a.channel = GetTrimmedChannel(args.Split(' ')[1]);
                         string[] nicks = args.Split(':')[1].Split(' ');
 
+                        
                         foreach (IRCRoom r in channels)
                         {
                             if (r.Name == a.channel)
                             {
+                                r.nickList.Clear();
                                 foreach (string n in nicks)
                                 {
                                     r.nickList.Add(n);
@@ -460,6 +545,40 @@ namespace IRCLib
                 }
                 break;
 
+                case Numerics.RPL_CHANNELMODEIS:
+                {
+                    consoleLog += "\n" + args;
+                    IRCChannelModeArgs a = new IRCChannelModeArgs();
+                    a.channel = GetTrimmedChannel(args.Split(' ')[2]);
+                    a.mode = args.Split(' ')[2];
+                    a.settingUser = "";
+
+                    if (ChannelModeEvent != null)
+                    {
+                        ChannelModeEvent(this, a);
+                    }
+                }
+                break;
+
+                case Numerics.RPL_CREATIONTIME:
+                {
+                     consoleLog += "\n" + args;
+
+                        IRCChannelCreationArgs a = new IRCChannelCreationArgs();
+                        a.channel = GetTrimmedChannel(args.Split(' ')[2]);
+
+                        if (!long.TryParse(args.Split(' ')[3], out a.date))
+                        {
+                            DebugLogger.LogLine("Couldn't parse the date the channel was created on: #" + a.channel);
+                            return;
+                        }
+
+                        if (ChannelCreationEvent != null)
+                        {
+                            ChannelCreationEvent(this, a);
+                        }
+                    }
+                break;
                 #endregion
 
 
@@ -482,6 +601,8 @@ namespace IRCLib
             }
         }
 
+        #region HELPER METHODS
+
         string GetUserFromList(List<string> nicks, string match)
         {
             foreach (string n in nicks)
@@ -492,6 +613,34 @@ namespace IRCLib
 
             return match;
         }
+
+        string GetTrimmedChannel(string channel)
+        {
+            string final = "";
+
+            if ('#' == channel[0])
+            {
+                for (int i = 1; i < channel.Length; i++)
+                {
+                    final += channel[i];
+                }
+                
+            }
+
+            return final;
+        }
+
+        IRCRoom FindRoom(string name)
+        {
+            foreach (IRCRoom room in channels)
+            {
+                if (room.Name == name)
+                    return room;
+            }
+
+            return null;
+        }
+        #endregion
     }
 
     #region EVENT ARGS CLASSES
@@ -535,6 +684,27 @@ namespace IRCLib
         public string channel;
         public string user;
         public string partMsg;
+    }
+
+    public class IRCUserModeArgs
+    {
+        public string channel;
+        public string settingUser;
+        public string mode;
+        public string targetUser;
+    }
+
+    public class IRCChannelModeArgs
+    {
+        public string channel;
+        public string settingUser;
+        public string mode;
+    }
+
+    public class IRCChannelCreationArgs
+    {
+        public string channel;
+        public long date;
     }
 
     #endregion
@@ -601,6 +771,16 @@ namespace IRCLib
         /// "<channel> :End of NAMES list"
         /// </summary>
         public const int RPL_ENDOFNAMES = 366;
+
+        /// <summary>
+        ///  "<channel> <mode> <mode params>"
+        /// </summary>
+        public const int RPL_CHANNELMODEIS = 324;
+
+        /// <summary>
+        /// <channel> <date>
+        /// </summary>
+        public const int RPL_CREATIONTIME = 329;
     }
     #endregion
 }

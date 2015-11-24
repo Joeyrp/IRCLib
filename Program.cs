@@ -140,6 +140,9 @@ namespace IRCLib
 
         static void ConsoleEvent(object sender, IRCConsoleMsgArgs args)
         {
+            if (366 == args.numeric)
+                return;
+
             Console.WriteLine("*CONSOLE* " + args.numeric.ToString() + " " + args.text);
         }
 
@@ -169,9 +172,11 @@ namespace IRCLib
 
         static void NamesList(object sender, IRCNamesArgs args)
         {
-            // Not cluttering up the console with a nick list for this example.
-            // args.names is a list of names and args.channel is the channel
-            // the names are in.
+            Console.WriteLine(" * Nick List:");
+            foreach (string n in args.names)
+            {
+                Console.WriteLine(n);
+            }
 
             Console.WriteLine(" * Nick list received!");
         }

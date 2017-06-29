@@ -5,14 +5,9 @@
 ****************************************************************/
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace IRCLib
 { 
@@ -104,6 +99,7 @@ namespace IRCLib
 
             outputStream.WriteLine("NICK " + connectionInfo.nick);
             outputStream.Flush();
+            // NOTE: Hardcoded personal value
             outputStream.WriteLine("USER 0 " + connectionInfo.nick + " * :Belthasar");
             outputStream.Flush();
 
@@ -121,8 +117,9 @@ namespace IRCLib
 
             outputStream.WriteLine("QUIT");
             outputStream.Flush();
-            
 
+          //  inputStream.Close();
+          //  inputStream = null;
             tcpClient = null;
             connected = false;
         }

@@ -520,7 +520,7 @@ namespace IRCLib
                     {
                         consoleLog += "\n" + args;
                         IRCNamesArgs a = new IRCNamesArgs();
-                        a.channel = GetTrimmedChannel(args.Split(' ')[1]);
+                        a.channel = GetTrimmedChannel(args.Split(' ')[2]);
                         string[] nicks = args.Split(':')[1].Split(' ');
 
                         

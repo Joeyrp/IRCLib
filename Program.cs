@@ -65,6 +65,9 @@ namespace IRCLib
 
             IRCServer server = new IRCServer();
 
+            Debug.WriteLine("Yo yo");
+            Debug.WriteLine("Yo yo");
+
             // Events
             server.ConsoleMessageEvent += ConsoleEvent;
             server.MessageEvent += MessageEvent;
@@ -73,6 +76,8 @@ namespace IRCLib
             server.NamesEvent += NamesList;
             server.JoinEvent += Join;
             server.PartEvent += Part;
+            server.ChannelModeEvent += ChannelModeEvent;
+            server.UserModeEvent += UserModeEvent;
 
             // Connect
             if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
@@ -88,6 +93,9 @@ namespace IRCLib
             {
                 if (Console.KeyAvailable)
                 {
+                    // NOTE: Console.ReadLine() should probably not be used as it will 
+                    //       block until the user presses enter. This could result in server.PollServer()
+                    //       not being called in time to respond to a PING.
                     command = Console.ReadLine();
                     if (command.StartsWith("/join") && command.Split('#').Length > 1)
                     {
@@ -133,6 +141,7 @@ namespace IRCLib
             return;
         }
 
+        #region EVENT HANDLERS
         static void MessageEvent(object sender, IRCMessageArgs args)
         {
             Console.WriteLine("*" + args.channel + "* <" + args.fromUser + "> " + args.text);
@@ -195,5 +204,17 @@ namespace IRCLib
             }
             Console.WriteLine(" *" + args.channel + "* " + args.user + " has left the channel" + msg);
         }
+
+        static void ChannelModeEvent(object sender, IRCChannelModeArgs args)
+        {
+            Console.WriteLine(" *" + args.channel + "* " + args.settingUser + " sets mode " + args.mode);
+        }
+
+        static void UserModeEvent(object sender, IRCUserModeArgs args)
+        {
+            Console.WriteLine(" *" + args.channel + "* " + args.settingUser + " sets mode " + args.mode + " " + args.targetUser);
+        }
+        #endregion
+   
     }
 }

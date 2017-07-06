@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 // TODO: Add support for all channel prefixes
+// TODO: Add support for kick and ban events
+// TODO: Add support for NOTICEw
 
 namespace IRCLib
 {
@@ -130,9 +132,9 @@ namespace IRCLib
         /// <param name="_password">your password. This can be empty if the server uses nickserv.</param>
         /// <returns>true if the connection is successful. False if there is already a connection or the connection failed. 
         /// There may be more info in the log file.</returns>
-        public bool Connect(string _serverAddress, int _port, string _nick, string _password)
+        public bool Connect(string _serverAddress, int _port, string _nick, string _password, string _name = "Default")
         {
-            return connection.Connect(_serverAddress, _port, _nick, _password);
+            return connection.Connect(_serverAddress, _port, _nick, _password, _name);
         }
 
         public void Disconnect()
@@ -209,6 +211,17 @@ namespace IRCLib
             return false;
         }
 
+        /// <summary>
+        /// Send a message to the given channel
+        /// </summary>
+        /// <param name="target">user nick or channel name (WITH the channel prefix)</param>
+        /// <param name="msg">message to send</param>
+        public void SendMessageTo(string target, string msg)
+        {
+            string command = "PRIVMSG " + target + " :" + msg;
+            SendRawCommand(command);
+        }
+
         public void SendRawCommand(string cmd)
         {
             if (connection.IsConnected)
@@ -240,7 +253,7 @@ namespace IRCLib
             string source = spaceSplit[0];
             
             // Source will contain an "!" if this is from a user.
-            // Otherwise it's from the server.
+            // Otherwise it's a numeric from the server.
             if (source.Contains("!"))
             {
                 string user = source.Split('!')[0].TrimStart(':');
@@ -451,8 +464,9 @@ namespace IRCLib
             }
             else
             {
-
-                if (source.TrimStart(':') == connection.ConnectionInfo.serverAddress)
+                // HACK: The if check does not work with freenode because connecting to chat.freenode.net actually connects to a random <domain>.freenode.net
+                //        Not sure what the best way to handle that is so for now this check is disabled.
+               // if (source.TrimStart(':') == connection.ConnectionInfo.serverAddress)
                 {
                     int numeric = 0;
                     string args = "";

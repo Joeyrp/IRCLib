@@ -77,8 +77,9 @@ namespace IRCLib
             server.UserModeEvent += UserModeEvent;
 
             // Connect
-            if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
-            {
+            //if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
+            if (!server.Connect("chat.freenode.net", 6667, "BelTest", ""))
+                {
                 DebugLogger.LogLine("Couldn't connect to the server.");
                 return;
             }
@@ -101,9 +102,12 @@ namespace IRCLib
                             Console.WriteLine("* Joined channel: #" + command.Split('#')[1]);
                         }
                     }
-                    else
+                    else if (!command.StartsWith("/"))
                     {
-                        server.SendRawCommand(command);
+                        // Only sending messages to the last joined channel.
+                        // This could be improved to keep track of the current channel the user is viewing
+                        // but this example is not going to cover that.
+                        server.SendMessageTo("#" + server.Channels[server.Channels.Count - 1].Name, command);
                     }
                 }
 
@@ -128,7 +132,7 @@ namespace IRCLib
 
                 server.PollServer();
                 
-            } while ("exit" != command);
+            } while ("/exit" != command);
 
             #endregion
 
@@ -210,7 +214,7 @@ namespace IRCLib
             }
             else
             {
-                Console.WriteLine(" *Modes for " + args.channel + " are " + args.modes);
+                Console.WriteLine(" * Modes for " + args.channel + " are " + args.modes);
             }
         }
 
@@ -222,7 +226,7 @@ namespace IRCLib
             }
             else
             {
-                Console.WriteLine(" *Modes for " + args.targetUser + " in channel " + args.channel + " are " + args.modes);
+                Console.WriteLine(" * Modes for " + args.targetUser + " in channel " + args.channel + " are " + args.modes);
             }
         }
         #endregion

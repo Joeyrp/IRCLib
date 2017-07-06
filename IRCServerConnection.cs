@@ -67,7 +67,7 @@ namespace IRCLib
         /// <param name="_password">your password. This can be empty if the server uses nickserv.</param>
         /// <returns>true if the connection is successful. If false if there is already a connection if the connection failed. 
         /// There may be more info in the log file.</returns>
-        public bool Connect(string _serverAddress, int _port, string _nick, string _password)
+        public bool Connect(string _serverAddress, int _port, string _nick, string _password, string name = "IRCLib_Default")
         {
             if (connected)
                 return false;
@@ -100,7 +100,7 @@ namespace IRCLib
             outputStream.WriteLine("NICK " + connectionInfo.nick);
             outputStream.Flush();
             // NOTE: Hardcoded personal value
-            outputStream.WriteLine("USER 0 " + connectionInfo.nick + " * :Belthasar");
+            outputStream.WriteLine("USER 0 " + connectionInfo.nick + " * :" + name);
             outputStream.Flush();
 
             connected = true;

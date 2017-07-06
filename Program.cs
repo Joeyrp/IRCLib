@@ -10,8 +10,8 @@ namespace IRCLib
 {
     class Program
     {
-        const string oauth = "oauth:b8gextvroq67b60rmyxifoz2bk850g";
-        const string tn = "guru_of_reason";
+        const string oauth = "[valid twitch oauth]";
+        const string tn = "[valid twitch username]";
         
 
         static void Main(string[] args)
@@ -26,7 +26,7 @@ namespace IRCLib
             //////////////////////////////////////////////////
             //      EXAMPLE IRCLib USAGE
             //////////////////////////////////////////////////
-            #region IRCServerConnetion TEST
+            #region IRCServerConnetion TEST -- Recommended to use IRCServer instead
             /*
             IRCServerConnection ircServer = new IRCServerConnection();
             Console.WriteLine("Connecting to irc.speedrunslive.com");
@@ -61,12 +61,9 @@ namespace IRCLib
             */
             #endregion
 
-            #region IRCServer TEST
+            #region IRCServer EXAMPLE
 
             IRCServer server = new IRCServer();
-
-            Debug.WriteLine("Yo yo");
-            Debug.WriteLine("Yo yo");
 
             // Events
             server.ConsoleMessageEvent += ConsoleEvent;
@@ -149,7 +146,7 @@ namespace IRCLib
 
         static void ConsoleEvent(object sender, IRCConsoleMsgArgs args)
         {
-            if (366 == args.numeric)
+            if (Numerics.RPL_ENDOFNAMES == args.numeric)
                 return;
 
             Console.WriteLine("*CONSOLE* " + args.numeric.ToString() + " " + args.text);
@@ -207,12 +204,26 @@ namespace IRCLib
 
         static void ChannelModeEvent(object sender, IRCChannelModeArgs args)
         {
-            Console.WriteLine(" *" + args.channel + "* " + args.settingUser + " sets mode " + args.mode);
+            if (args.settingUser != "")
+            {
+                Console.WriteLine(" *" + args.channel + "* " + args.settingUser + " sets mode " + args.modes);
+            }
+            else
+            {
+                Console.WriteLine(" *Modes for " + args.channel + " are " + args.modes);
+            }
         }
 
         static void UserModeEvent(object sender, IRCUserModeArgs args)
         {
-            Console.WriteLine(" *" + args.channel + "* " + args.settingUser + " sets mode " + args.mode + " " + args.targetUser);
+            if (args.settingUser != "")
+            {
+                Console.WriteLine(" *" + args.channel + "* " + args.settingUser + " sets mode " + args.modes + " " + args.targetUser);
+            }
+            else
+            {
+                Console.WriteLine(" *Modes for " + args.targetUser + " in channel " + args.channel + " are " + args.modes);
+            }
         }
         #endregion
    

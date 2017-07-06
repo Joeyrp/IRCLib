@@ -4,20 +4,24 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+// TODO: Add support for all channel prefixes
+
 namespace IRCLib
 {
-    //public class IRCNick
-    //{
-    //    public string name;
-    //    public string modes;
-    //}
+    public class IRCUser
+    {
+        public enum USERMODES { VOICE, HALFOP, OPERATOR, SOP, OWNER, INVALID };
+        public string nick;
+        public List<USERMODES> modes = new List<USERMODES>();
+    }
     public class IRCRoom
     {
-       public string Name = "";   // NO #
+       public string Name = "";   // NO PREFIX
        public string Modes = "";
         public string topic = "";
        public string roomLog = "";
-       public List<string> nickList = new List<string>();
+       public List<IRCUser> nickList = new List<IRCUser>();
+       //public List<string> nickList = new List<string>();
     }
 
     class IRCServer
@@ -124,7 +128,7 @@ namespace IRCLib
         /// <param name="_port">usually 6667</param>
         /// <param name="_nick">your nick</param>
         /// <param name="_password">your password. This can be empty if the server uses nickserv.</param>
-        /// <returns>true if the connection is successful. If false if there is already a connection if the connection failed. 
+        /// <returns>true if the connection is successful. False if there is already a connection or the connection failed. 
         /// There may be more info in the log file.</returns>
         public bool Connect(string _serverAddress, int _port, string _nick, string _password)
         {
@@ -173,6 +177,7 @@ namespace IRCLib
 
 
             connection.SendMessage("JOIN #" + channel);
+            connection.SendMessage("MODE #" + channel);
 
             return true; 
         }
@@ -261,11 +266,19 @@ namespace IRCLib
                     // Is this a channel mode?
                     if ("" == targetUser)
                     {
+                        foreach (IRCRoom room in channels)
+                        {
+                            if (room.Name == ch)
+                            {
+                                room.Modes = UpdateChannelModes(room.Modes, mode);
+                            }
+                         }
+
                         if (ChannelModeEvent != null)
                         {
                             IRCChannelModeArgs a = new IRCChannelModeArgs();
                             a.channel = ch;
-                            a.mode = mode;
+                            a.modes = mode;
                             a.settingUser = user;
                             ChannelModeEvent(this, a);
                         }
@@ -273,12 +286,26 @@ namespace IRCLib
                     else
                     {
                         SendRawCommand("NAMES #" + ch);
-                    
+
+                        foreach (IRCRoom room in channels)
+                        {
+                            if (room.Name == ch)
+                            {
+                                foreach (IRCUser u in room.nickList)
+                                {
+                                    if (u.nick == targetUser)
+                                    {
+                                        u.modes.Add(GetModeFromPrefix(mode));
+                                    }
+                                }
+                            }
+                        }
+
                         if (UserModeEvent != null)
                         {
                             IRCUserModeArgs a = new IRCUserModeArgs();
                             a.channel = ch;
-                            a.mode = mode;
+                            a.modes = mode;
                             a.settingUser = user;
                             a.targetUser = targetUser;
                             UserModeEvent(this, a);
@@ -296,7 +323,9 @@ namespace IRCLib
                     {
                         if (room.Name == ch)
                         {
-                            room.nickList.Add(user);
+                            IRCUser joinedUser = new IRCUser();
+                            joinedUser.nick = user;
+                            room.nickList.Add(joinedUser);
                             if (JoinEvent != null)
                             {
                                 IRCJoinArgs a = new IRCJoinArgs();
@@ -316,7 +345,15 @@ namespace IRCLib
                     {
                         if (room.Name == ch)
                         {
-                            room.nickList.Remove(user);
+                            //room.nickList.Remove(user);
+                            foreach (IRCUser u in room.nickList)
+                            {
+                                if (u.nick == user)
+                                {
+                                    room.nickList.Remove(u);
+                                    break;
+                                }
+                            }
                             if (PartEvent != null)
                             {
                                 IRCPartArgs a = new IRCPartArgs();
@@ -445,7 +482,7 @@ namespace IRCLib
         {
             switch (numeric)
             {
-                #region NO EXTRA ACTIONS NEEDED
+                #region NO SPECIAL ARGS NEEDED
 
                 case Numerics.RPL_WELCOME:
                 case Numerics.RPL_YOURHOST:
@@ -531,7 +568,13 @@ namespace IRCLib
                                 r.nickList.Clear();
                                 foreach (string n in nicks)
                                 {
-                                    r.nickList.Add(n);
+                                    IRCUser user = new IRCUser();
+                                    user.nick = n;
+                                    IRCUser.USERMODES mode = GetModeFromPrefix(n[0].ToString());
+                                    if (mode != IRCUser.USERMODES.INVALID)
+                                        user.modes.Add(mode);
+
+                                    r.nickList.Add(user);
                                     a.names.Add(n);
                                 }
                                 break;
@@ -549,9 +592,17 @@ namespace IRCLib
                 {
                     consoleLog += "\n" + args;
                     IRCChannelModeArgs a = new IRCChannelModeArgs();
-                    a.channel = GetTrimmedChannel(args.Split(' ')[2]);
-                    a.mode = args.Split(' ')[2];
+                    a.channel = GetTrimmedChannel(args.Split(' ')[1]);
+                    a.modes = args.Split(' ')[2];
                     a.settingUser = "";
+
+                    foreach (IRCRoom channel in Channels)
+                    {
+                        if (channel.Name == a.channel)
+                        {
+                            channel.Modes = a.modes.TrimStart('+');
+                        }
+                    }
 
                     if (ChannelModeEvent != null)
                     {
@@ -565,9 +616,9 @@ namespace IRCLib
                      consoleLog += "\n" + args;
 
                         IRCChannelCreationArgs a = new IRCChannelCreationArgs();
-                        a.channel = GetTrimmedChannel(args.Split(' ')[2]);
+                        a.channel = GetTrimmedChannel(args.Split(' ')[1]);
 
-                        if (!long.TryParse(args.Split(' ')[3], out a.date))
+                        if (!long.TryParse(args.Split(' ')[2], out a.date))
                         {
                             DebugLogger.LogLine("Couldn't parse the date the channel was created on: #" + a.channel);
                             return;
@@ -603,12 +654,13 @@ namespace IRCLib
 
         #region HELPER METHODS
 
-        string GetUserFromList(List<string> nicks, string match)
+        string GetUserFromList(List<IRCUser> nicks, string match)
         {
-            foreach (string n in nicks)
+            foreach (IRCUser n in nicks)
             {
-                if (n.Contains(match))
-                    return n;
+                char[] tm = { '+', '%', '@', '&', '~' };
+                if (n.nick.TrimStart(tm) == match)
+                    return n.nick;
             }
 
             return match;
@@ -640,6 +692,42 @@ namespace IRCLib
 
             return null;
         }
+
+        IRCUser.USERMODES GetModeFromPrefix(string mode)
+        {
+            string[] prefixes = { "+", "%", "@", "&", "~" };
+            mode = mode.ToLower();
+            mode = mode.Trim();
+
+            for (int i = 0; i < prefixes.Length; i++)
+            {
+                if (mode == prefixes[i])
+                {
+                    return (IRCUser.USERMODES)i;
+                }
+            }
+
+            return IRCUser.USERMODES.INVALID;
+        }
+
+        string UpdateChannelModes(string modes, string mod)
+        {
+            // Add new modes
+            if (mod[0] == '+')
+            {
+                for (int i = 1; i < mod.Length; i++)
+                    modes += mod[i];
+            }
+            // Remove modes
+            else
+            {
+                for (int i = 1; i < mod.Length; i++)
+                    modes = modes.Remove(modes.IndexOf(mod[i]), 1);
+            }
+
+            return modes;
+        }
+
         #endregion
     }
 
@@ -690,7 +778,7 @@ namespace IRCLib
     {
         public string channel;
         public string settingUser;
-        public string mode;
+        public string modes;
         public string targetUser;
     }
 
@@ -698,7 +786,7 @@ namespace IRCLib
     {
         public string channel;
         public string settingUser;
-        public string mode;
+        public string modes;
     }
 
     public class IRCChannelCreationArgs
@@ -713,7 +801,7 @@ namespace IRCLib
     /// <summary>
     /// These numeric server messages are implemented unless otherwise noted.
     /// </summary>
-    static class Numerics
+    public static class Numerics
     {
         /// <summary>
         /// "Welcome to the Internet Relay Network
@@ -750,6 +838,16 @@ namespace IRCLib
         public const int RPL_LISTEND = 323;
 
         /// <summary>
+        /// <channel> +<modes>
+        /// </summary>
+        public const int RPL_CHANNELMODEIS = 324;
+
+        /// <summary>
+        /// <channel> <date>
+        /// </summary>
+        public const int RPL_CREATIONTIME = 329;
+
+        /// <summary>
         /// "<channel> :<topic>"
         /// </summary>
         public const int RPL_TOPIC = 332;
@@ -772,15 +870,6 @@ namespace IRCLib
         /// </summary>
         public const int RPL_ENDOFNAMES = 366;
 
-        /// <summary>
-        ///  "<channel> <mode> <mode params>"
-        /// </summary>
-        public const int RPL_CHANNELMODEIS = 324;
-
-        /// <summary>
-        /// <channel> <date>
-        /// </summary>
-        public const int RPL_CREATIONTIME = 329;
     }
     #endregion
 }

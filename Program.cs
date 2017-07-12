@@ -10,8 +10,9 @@ namespace IRCLib
 {
     class Program
     {
-        const string oauth = "[valid twitch oauth]";
+        
         const string tn = "[valid twitch username]";
+        const string oauth = "[valid twitch oauth]";
         
 
         static void Main(string[] args)
@@ -27,6 +28,11 @@ namespace IRCLib
             //      EXAMPLE IRCLib USAGE
             //////////////////////////////////////////////////
             #region IRCServerConnetion TEST -- Recommended to use IRCServer instead
+
+            // NOTE: IRCServerConnection can be used directly but this will only give
+            //       you raw server messages that you will have to parse on your own.
+
+
             /*
             IRCServerConnection ircServer = new IRCServerConnection();
             Console.WriteLine("Connecting to irc.speedrunslive.com");
@@ -55,13 +61,18 @@ namespace IRCLib
                     Console.WriteLine(response);
                     DebugLogger.LogLine(response);
                 }
-            } while ("exit" != command);
+            } while ("quit" != command);
 
             ircServer.Disconnect();
             */
             #endregion
 
             #region IRCServer EXAMPLE
+
+            // NOTE: This is a fairly bare-bones example of how to use the IRCServer class.
+            //       It covers all of the main features even if the result isn't very usable.
+            //       The most correct way to set up an event loop would be to put the IRCServer
+            //       (specifically the server.PollServer() method) and the user input on 2 separate threads.
 
             IRCServer server = new IRCServer();
 
@@ -73,20 +84,26 @@ namespace IRCLib
             server.NamesEvent += NamesList;
             server.JoinEvent += Join;
             server.PartEvent += Part;
+            server.KickEvent += Kick;
             server.ChannelModeEvent += ChannelModeEvent;
             server.UserModeEvent += UserModeEvent;
 
             // Connect
             //if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
             if (!server.Connect("chat.freenode.net", 6667, "BelTest", ""))
-                {
+            {
                 DebugLogger.LogLine("Couldn't connect to the server.");
                 return;
             }
 
-            // Command loop
+            
+
+            // Command loop: Very basic client loop.
+            // We are only handling a few commands: /nick, /join, /part, /raw and /quit
+            // Everything else is considered a message and sent to the last joined channel.
+            // As stated above this should really be separated into 2 threads - one for the user
+            // input and another to execute server methods.
             string command = "";
-            int logLines = 0;
             do
             {
                 if (Console.KeyAvailable)
@@ -95,19 +112,63 @@ namespace IRCLib
                     //       block until the user presses enter. This could result in server.PollServer()
                     //       not being called in time to respond to a PING.
                     command = Console.ReadLine();
-                    if (command.StartsWith("/join") && command.Split('#').Length > 1)
+
+                    // Change nick
+                    if (command.ToLower().StartsWith("/nick") && command.Split(' ').Length > 1)
                     {
-                       if (server.JoinChannel(command.Split('#')[1]))
+                        server.ChangeNick(command.Split(' ')[1]);
+                    }
+                    // Join the given channel
+                    else if (command.ToLower().StartsWith("/join") && command.Split(' ').Length > 1)
+                    {
+                        if (server.JoinChannel(command.Split(' ')[1]))
                         {
-                            Console.WriteLine("* Joined channel: #" + command.Split('#')[1]);
+                            Console.WriteLine("* Joined channel: " + command.Split(' ')[1]);
                         }
                     }
+                    // Leave the given channel
+                    else if (command.ToLower().StartsWith("/part") && command.Split(' ').Length > 1)
+                    {
+                        string msg = "";
+                        if (command.Split(' ').Length > 2)
+                        {
+                            char[] sep = { ' ' };
+                            msg = command.Split(sep, 3)[2];
+                        }
+                        string channel = command.Split(' ')[1];
+
+                        if (server.LeaveChannel(channel, msg))
+                        {
+                            Console.WriteLine("* Leaving channel: " + channel);
+                        }
+                        else
+                        {
+                            Console.WriteLine(" Not in channel " + channel);
+                        }
+                    }
+                    // Send the following to the server without modification
+                    // this can be used to send any unsupported command to the server
+                    // WARNING: Sending raw commands can put the IRCServer object in a bad state
+                    //          because it will not process these commands at all.
+                    //          For instance, if you use this to send a NICK command
+                    //          the IRCserver object will be unaware of the nick change
+                    //          and will still be using the old nick.
+                    else if (command.ToLower().StartsWith("/raw"))
+                    {
+                        char[] sep = { ' ' };
+                        string[] raw = command.Split(sep, 2);
+
+                        if (raw.Length > 1)
+                            server.SendRawCommand(raw[1]);
+                    }
+                    // Everything else is considered a message sent to a channel
                     else if (!command.StartsWith("/"))
                     {
                         // Only sending messages to the last joined channel.
                         // This could be improved to keep track of the current channel the user is viewing
                         // but this example is not going to cover that.
-                        server.SendMessageTo("#" + server.Channels[server.Channels.Count - 1].Name, command);
+                        if (server.Channels.Count > 0)
+                            server.SendMessageTo(server.Channels[server.Channels.Count - 1].Name, command);
                     }
                 }
 
@@ -132,7 +193,7 @@ namespace IRCLib
 
                 server.PollServer();
                 
-            } while ("/exit" != command);
+            } while ("/quit" != command);
 
             #endregion
 
@@ -203,7 +264,25 @@ namespace IRCLib
             {
                 msg = "(" + args.partMsg + ")";
             }
-            Console.WriteLine(" *" + args.channel + "* " + args.user + " has left the channel" + msg);
+            Console.WriteLine(" *" + args.channel + "* " + args.user + " has left the channel " + msg);
+        }
+
+        static void Kick(object sender, IRCKickArgs args)
+        {
+            string msg = "";
+            if (args.kickMsg != "")
+            {
+                msg = " (" + args.kickMsg + ")";
+            }
+
+            if (args.thisClient)
+            {
+                Console.WriteLine(" *You were kicked from " + args.channel + " by " + args.kickingUser + msg);
+            }
+            else
+            {
+                Console.WriteLine(" *" + args.channel + "* " + args.kickedUser + " was kicked by " + args.kickingUser + msg);
+            }
         }
 
         static void ChannelModeEvent(object sender, IRCChannelModeArgs args)

@@ -17,6 +17,7 @@ namespace IRCLib
         {
             fileName = _fileName;
             streamWriter = _writer;
+            explicitOnly = _explicit;
         }
     }
 

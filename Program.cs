@@ -18,7 +18,7 @@ namespace IRCLib
         static void Main(string[] args)
         {
             DebugLogger.Initialize();
-            DebugLogger.AddLogFile("Log.txt");
+            DebugLogger.AddLogFile("ExampleLog.txt");
 
             DebugLogger.LogLine("", true);
             DebugLogger.LogLine("\tNEW INSTANCE STARTED\n");
@@ -92,7 +92,7 @@ namespace IRCLib
             //if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
             if (!server.Connect("chat.freenode.net", 6667, "BelTest", ""))
             {
-                DebugLogger.LogLine("Couldn't connect to the server.");
+                DebugLogger.LogLine("Couldn't connect to the server.", "ExampleLog.txt");
                 return;
             }
 
@@ -199,14 +199,17 @@ namespace IRCLib
 
             server.Disconnect();
 
-            DebugLogger.LogLine("Program End");
+            DebugLogger.LogLine("Program End", "ExampleLog.txt");
             return;
         }
 
         #region EVENT HANDLERS
         static void MessageEvent(object sender, IRCMessageArgs args)
         {
-            Console.WriteLine("*" + args.channel + "* <" + args.fromUser + "> " + args.text);
+            if (args.isNotice)
+                Console.WriteLine("*" + args.channel + "* -" + args.fromUser + "- " + args.text);
+            else
+                Console.WriteLine("*" + args.channel + "* <" + args.fromUser + "> " + args.text);
         }
 
         static void ConsoleEvent(object sender, IRCConsoleMsgArgs args)
@@ -219,16 +222,14 @@ namespace IRCLib
 
         static void TopicChange(object sender, IRCTopicArgs args)
         {
-            //string lastLine = r.roomLog.Split('\n')[r.roomLog.Split('\n').Length - 1];
-            // Console.WriteLine(lastLine);
-
             Console.WriteLine(" * " + args.byUser + " changes topic to '" + args.topic + "'");
         }
 
         static void ShowTopic(object sender, IRCTopicArgs args)
         {
-            // This event occurs in 2 parts. The first is when the date is -1. This means only the topic and channel are set.
-            // When the date is > -1 the channel, byUser, and date are set but the topic is not.
+            //  This event occurs in 2 parts (and so will be recieved twice). The first time the date is -1. 
+            //  This means only the topic and channel are available.
+            //  The second time the date is > -1 and the channel, byUser, and date are available but the topic is not.
             if (-1 == args.date)
             {
                 Console.WriteLine(" * " + "Topic is '" + args.topic + "'");

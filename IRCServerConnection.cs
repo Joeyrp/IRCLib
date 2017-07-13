@@ -1,8 +1,11 @@
-﻿/***************************************************************
-*   IRCServer.cs - Maintains a connection to an irc server and 
-*               provides access to the raw response data coming
-*               from the server.
-****************************************************************/
+﻿/******************************************************************************
+*	File		-	IRCServerConnection.cs
+*	Author		-	Joey Pollack
+*	Date		-	11/19/2015 (m/d/y)
+*	Mod Date	-	7/13/2017 (m/d/y)
+*	Description	-	Maintains a connection to an irc server and allows for
+*                   sending and receiving raw IRC protocol messages.
+******************************************************************************/
 
 using System;
 using System.Diagnostics;

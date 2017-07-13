@@ -1,4 +1,14 @@
-﻿using System;
+﻿/******************************************************************************
+*	File		-	IRCInputStream.cs
+*	Author		-	Joey Pollack
+*	Date		-	11/23/2015 (m/d/y)
+*	Mod Date	-	7/13/2017 (m/d/y)
+*	Description	-	Listens for input on a given stream reader 
+*	                This is not actually specific to IRC and could be used
+*	                with any stream reader that is waiting on network responses.
+******************************************************************************/
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,7 +20,7 @@ namespace IRCLib
 {
     class IRCInputStream
     {
-        StreamWriter log = new StreamWriter("ReaderLog.txt");
+       // StreamWriter log = new StreamWriter("ReaderLog.txt");
 
         StreamReader reader = null;
         string buffer;
@@ -26,6 +36,8 @@ namespace IRCLib
             buffer = "";
             readThread = new Thread(read);
             readThread.Start();
+            DebugLogger.AddLogFile("ReaderLog.txt");
+            DebugLogger.LogLine("IRC Input Stream initialized", "ReaderLog.txt");
         }
 
         //~IRCInputStream()
@@ -41,7 +53,8 @@ namespace IRCLib
             {
                 reader.Close();
             }
-            
+
+            DebugLogger.LogLine("IRC Input Stream closed", "ReaderLog.txt");
         }
 
         public bool InputAvailable()
@@ -65,7 +78,10 @@ namespace IRCLib
         public string ReadLine()
         {
             if (!bufferMutex.WaitOne(500))
+            {
+                DebugLogger.LogLine("Could not aquire mutex", "ReaderLog.txt");
                 return "";
+            }
 
             if ("" == buffer)
             {
@@ -83,8 +99,7 @@ namespace IRCLib
                 return line;
             }
 
-            log.Write(buffer + "\n\n\n\n");
-            log.Flush();
+            DebugLogger.LogLine(buffer + "\n\n\n\n", "ReaderLog.txt");
             string[] lines = buffer.Split('\n');
 
             buffer = "";
@@ -102,6 +117,7 @@ namespace IRCLib
 
         private void read()
         {
+            // This while condition appears to work fine but I don't remember why...
             while (!reader.EndOfStream /*&& open*/)
             {
                 if (bufferMutex.WaitOne(1000))
@@ -113,7 +129,7 @@ namespace IRCLib
                     // discard old lines if the buffer is at the limit.
                     while (buffer.Length >= bufferLimit)
                     {
-                        DebugLogger.LogLine("IRCInputStream: buffer at the limit");
+                        DebugLogger.LogLine("IRCInputStream: buffer at the limit", "ReaderLog.txt");
 
                         string[] lines = buffer.Split('\n');
 
@@ -126,9 +142,10 @@ namespace IRCLib
                                 buffer += lines[i] + '\n';
                         }
                     }
-                    
+
                     bufferMutex.ReleaseMutex();
                 }
+               
             }
         }
     }

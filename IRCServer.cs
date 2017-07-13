@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 // TODO: *DONE - TESTING* Add support for all channel prefixes 
 // TODO: *DONE - TESTING* Add support for kick and ban (should be handled already through user modes) events
-// TODO: Add support for NOTICE
+// TODO: *DONE* Add support for NOTICE
+// TODO: CTCP Version, Time and Ping
 
 namespace IRCLib
 {
@@ -157,6 +158,10 @@ namespace IRCLib
             }
         }
 
+        /// <summary>
+        /// Change nick for this connection
+        /// </summary>
+        /// <param name="nick">The nick to change to</param>
         public void ChangeNick(string nick)
         {
             string oldNick = connection.ConnectionInfo.nick;
@@ -257,9 +262,15 @@ namespace IRCLib
         /// </summary>
         /// <param name="target">user nick or channel name (WITH the channel prefix)</param>
         /// <param name="msg">message to send</param>
-        public void SendMessageTo(string target, string msg)
+        /// <param name="asNotice">true to send NOTICE instead of PRIVMSG</param>
+        public void SendMessageTo(string target, string msg, bool asNotice = false)
         {
-            string command = "PRIVMSG " + target + " :" + msg;
+            string command = "";
+            if (asNotice)
+                command = "PRIVMSG " + target + " :" + msg;
+            else
+                command = "NOTICE " + target + " :" + msg;
+
             SendRawCommand(command);
         }
 
@@ -297,8 +308,8 @@ namespace IRCLib
             string[] spaceSplit = msg.Split(' ');
             string source = spaceSplit[0];
             
-            // Source will contain an "!" if this is from a user.
-            // Otherwise it's a numeric (or Notice?) from the server.
+            // Source will contain an "!" if this is from or about a user.
+            // Otherwise it's a numeric from the server.
             if (source.Contains("!"))
             {
                 string user = source.Split('!')[0].TrimStart(':');
@@ -308,28 +319,23 @@ namespace IRCLib
             }
             else
             {
-                // HACK: The if check does not work with freenode because connecting to chat.freenode.net actually connects to a random <domain>.freenode.net
-                //        Not sure what the best way to handle that is so for now this check is disabled.
-               // if (source.TrimStart(':') == connection.ConnectionInfo.serverAddress)
+                int numeric = 0;
+                string args = "";
+                if (spaceSplit.Length < 3 || !int.TryParse(spaceSplit[1], out numeric))
                 {
-                    int numeric = 0;
-                    string args = "";
-                    if (spaceSplit.Length < 3 || !int.TryParse(spaceSplit[1], out numeric))
-                    {
-                        DebugLogger.LogLine("Unknown server message format: " + msg);
-                        ParseNumeric(-1, msg);
-                        return;
-                    }
-
-                    for (int i = 2; i < spaceSplit.Length; i++)
-                    {
-                        args += spaceSplit[i] + ' ';
-                    }
-                    args = args.Trim(' ');
-
-                    ParseNumeric(numeric, args);
-                    DebugLogger.LogLine(msg);
+                    DebugLogger.LogLine("Unknown server message format: " + msg);
+                    ParseNumeric(-1, msg);
+                    return;
                 }
+
+                for (int i = 2; i < spaceSplit.Length; i++)
+                {
+                    args += spaceSplit[i] + ' ';
+                }
+                args = args.Trim(' ');
+
+                ParseNumeric(numeric, args);
+                DebugLogger.LogLine(msg);
 
             }
 
@@ -576,8 +582,8 @@ namespace IRCLib
             }
             #endregion
 
-            #region PRIVMSG
-            if ("PRIVMSG" == cmd)
+            #region PRIVMSG/NOTICE
+            if ("PRIVMSG" == cmd || "NOTICE" == cmd)
             {
                 string ch = spaceSplit[2];
                 string text = "";
@@ -603,6 +609,7 @@ namespace IRCLib
                             ma.fromUser = user;
                             ma.text = text;
                             ma.room = room;
+                            ma.isNotice = ("NOTICE" == cmd) ? true : false;
 
                             MessageEvent(this, ma);
                         }
@@ -910,6 +917,7 @@ namespace IRCLib
         public string fromUser;
         public string text;
         public IRCRoom room;
+        public bool isNotice;
     }
 
     public class IRCConsoleMsgArgs

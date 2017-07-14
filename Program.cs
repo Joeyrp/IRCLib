@@ -1,24 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+﻿/******************************************************************************
+*	File		-	Program.cs
+*	Author		-	Joey Pollack
+*	Date		-	11/19/2015 (m/d/y)
+*	Mod Date	-	7/14/2017 (m/d/y)
+*	Description	-	Contains IRCLib usage examples
+******************************************************************************/
+using System;
 
 namespace IRCLib
 {
     class Program
     {
         
-        const string tn = "[valid twitch username]";
-        const string oauth = "[valid twitch oauth]";
-        
-
         static void Main(string[] args)
         {
             DebugLogger.Initialize();
-            DebugLogger.AddLogFile("ExampleLog.txt");
+            DebugLogger.AddLogFile("ExampleProgramLog.txt");
 
             DebugLogger.LogLine("", true);
             DebugLogger.LogLine("\tNEW INSTANCE STARTED\n");
@@ -27,6 +24,12 @@ namespace IRCLib
             //////////////////////////////////////////////////
             //      EXAMPLE IRCLib USAGE
             //////////////////////////////////////////////////
+
+            // Twitch credentials
+            const string tn = "[valid twitch username]";
+            const string oauth = "oauth:[valid twitch oauth]";
+
+
             #region IRCServerConnetion TEST -- Recommended to use IRCServer instead
 
             // NOTE: IRCServerConnection can be used directly but this will only give
@@ -37,7 +40,6 @@ namespace IRCLib
             IRCServerConnection ircServer = new IRCServerConnection();
             Console.WriteLine("Connecting to irc.speedrunslive.com");
 
-            //if (!ircServer.Connect("irc.twitch.tv", 6667, tn, oauth))
             if (!ircServer.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
             {
                 Console.WriteLine("Could not connect to the server.");
@@ -89,10 +91,12 @@ namespace IRCLib
             server.UserModeEvent += UserModeEvent;
 
             // Connect
-            //if (!server.Connect("irc.speedrunslive.com", 6667, "BelTest", ""))
-            if (!server.Connect("chat.freenode.net", 6667, "BelTest", ""))
+            //if (!server.Connect("irc.speedrunslive.com", 6667, "IRCLibTest1", ""))
+            //if (!server.Connect("irc.twitch.tv", 6667, tn, oauth))
+            if (!server.Connect("chat.freenode.net", 6667, "IRCLibTest1", ""))
             {
-                DebugLogger.LogLine("Couldn't connect to the server.", "ExampleLog.txt");
+                DebugLogger.LogLine("Couldn't connect to the server.", "ExampleProgramLog.txt");
+                Console.WriteLine("Couldn't connect to the server: " + server.ConnectionInfo.serverAddress);
                 return;
             }
 
@@ -195,11 +199,12 @@ namespace IRCLib
                 
             } while ("/quit" != command);
 
-            #endregion
-
             server.Disconnect();
 
-            DebugLogger.LogLine("Program End", "ExampleLog.txt");
+            #endregion
+
+
+            DebugLogger.LogLine("Program End", "ExampleProgramLog.txt");
             return;
         }
 
@@ -212,11 +217,26 @@ namespace IRCLib
                 Console.WriteLine("*" + args.channel + "* <" + args.fromUser + "> " + args.text);
         }
 
+        // Any numeric (or other response) that does not have an event associated with it will be sent here
         static void ConsoleEvent(object sender, IRCConsoleMsgArgs args)
         {
             if (Numerics.RPL_ENDOFNAMES == args.numeric)
                 return;
 
+            // The Twitch.tv server has extra capabilities that need to be
+            // explicitly requested. This can be done when the Welcome message
+            // is received.
+            if (Numerics.RPL_WELCOME == args.numeric)
+            {
+                IRCServer server = (IRCServer)sender;
+                if (server.ConnectionInfo.serverAddress == "irc.twitch.tv")
+                {
+                    server.SendRawCommand("CAP REQ :twitch.tv/membership");
+                    server.SendRawCommand("CAP REQ :twitch.tv/tags");
+                    server.SendRawCommand("CAP REQ :twitch.tv/commands");
+                }
+            }
+            
             Console.WriteLine("*CONSOLE* " + args.numeric.ToString() + " " + args.text);
         }
 

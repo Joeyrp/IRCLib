@@ -1,13 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿/******************************************************************************
+*	File		-	IRCServer.cs
+*	Author		-	Joey Pollack
+*	Date		-	11/23/2015 (m/d/y)
+*	Mod Date	-	7/14/2017 (m/d/y)
+*	Description	-	Wrapper for IRCServerConnection that parses the raw
+*	                server output and sends the information as events. Also 
+*	                has methods for easily sending common messages to the server.
+******************************************************************************/
 
-// TODO: *DONE - TESTING* Add support for all channel prefixes 
-// TODO: *DONE - TESTING* Add support for kick and ban (should be handled already through user modes) events
-// TODO: *DONE* Add support for NOTICE
+using System;
+using System.Collections.Generic;
+
 // TODO: CTCP Version, Time and Ping
+// TODO: Improve user mode tracking (track each mode char "+q" etc.)
+// TODO: Implement more numerics
 
 namespace IRCLib
 {
@@ -15,10 +21,10 @@ namespace IRCLib
     {
         public enum USERMODES { VOICE, HALFOP, OPERATOR, SOP, ADMIN = SOP, FOUNDER, OWNER = FOUNDER, INVALID };
 
-        // Contains mode prefix (+, @, etc)
-        public string nick;
+        public string nick;     // Contains mode prefix (+, @, etc)
         public List<USERMODES> modes = new List<USERMODES>();
     }
+
     public class IRCRoom
     {
        public string Name = "";   // WITH PREFIX
@@ -26,7 +32,6 @@ namespace IRCLib
         public string topic = "";
        public string roomLog = "";
        public List<IRCUser> nickList = new List<IRCUser>();
-       //public List<string> nickList = new List<string>();
     }
 
     class IRCServer
@@ -384,7 +389,7 @@ namespace IRCLib
                 }
                 else
                 {
-                    SendRawCommand("NAMES #" + ch);
+                    SendRawCommand("NAMES " + ch);
 
                     foreach (IRCRoom room in channels)
                     {

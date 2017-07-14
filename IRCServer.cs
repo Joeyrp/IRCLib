@@ -312,27 +312,13 @@ namespace IRCLib
 
             string[] spaceSplit = msg.Split(' ');
             string source = spaceSplit[0];
-            
-            // Source will contain an "!" if this is from or about a user.
-            // Otherwise it's a numeric from the server.
-            if (source.Contains("!"))
-            {
-                string user = source.Split('!')[0].TrimStart(':');
-                string cmd = spaceSplit[1];
 
-                ParseUserMessage(user, cmd, msg, spaceSplit);
-            }
-            else
+            // NOTE: Assuming numerics will always be the value after the first space
+            int numeric = -1;
+
+            if (int.TryParse(spaceSplit[1], out numeric))
             {
-                int numeric = 0;
                 string args = "";
-                if (spaceSplit.Length < 3 || !int.TryParse(spaceSplit[1], out numeric))
-                {
-                    DebugLogger.LogLine("Unknown server message format: " + msg);
-                    ParseNumeric(-1, msg);
-                    return;
-                }
-
                 for (int i = 2; i < spaceSplit.Length; i++)
                 {
                     args += spaceSplit[i] + ' ';
@@ -340,8 +326,13 @@ namespace IRCLib
                 args = args.Trim(' ');
 
                 ParseNumeric(numeric, args);
-                DebugLogger.LogLine(msg);
+            }
+            else
+            {
+                string user = spaceSplit[0].TrimStart(':').Split('!')[0];
+                string cmd = spaceSplit[1];
 
+                ParseUserMessage(user, cmd, msg, spaceSplit);
             }
 
             #endregion
@@ -420,7 +411,7 @@ namespace IRCLib
             #endregion
 
             #region JOIN PART KICK QUIT
-            if ("JOIN" == cmd)
+            else if ("JOIN" == cmd)
             {
                 string ch = spaceSplit[2];
                 foreach (IRCRoom room in channels)
@@ -441,8 +432,7 @@ namespace IRCLib
                     }
                 }
             }
-
-            if ("PART" == cmd)
+            else if ("PART" == cmd)
             {
                 string ch = spaceSplit[2];
                 foreach (IRCRoom room in channels)
@@ -478,8 +468,7 @@ namespace IRCLib
                     }
                 }
             }
-
-            if ("KICK" == cmd)
+            else if ("KICK" == cmd)
             {
                 // TODO: HANDLE KICK EVENT
                 // kicked user starts at [3] reason is after second ':'
@@ -546,8 +535,7 @@ namespace IRCLib
 
             
             }
-
-            if ("QUIT" == cmd)
+            else if ("QUIT" == cmd)
             {
                 // TODO: QUIT
             }
@@ -555,7 +543,7 @@ namespace IRCLib
             #endregion
 
             #region TOPIC
-            if ("TOPIC" == cmd)
+            else if ("TOPIC" == cmd)
             {
                 string ch = spaceSplit[2];
                 string text = "";
@@ -588,7 +576,7 @@ namespace IRCLib
             #endregion
 
             #region PRIVMSG/NOTICE
-            if ("PRIVMSG" == cmd || "NOTICE" == cmd)
+            else if ("PRIVMSG" == cmd || "NOTICE" == cmd)
             {
                 string ch = spaceSplit[2];
                 string text = "";
@@ -623,6 +611,21 @@ namespace IRCLib
                 }
             }
             #endregion
+
+            else
+            {
+                consoleLog += "\n[UNHANDLED] " + msg;
+
+                if (ConsoleMessageEvent != null)
+                {
+                    IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
+                    a.numeric = -1;
+                    a.text = msg;
+                    a.fullConsoleLog = consoleLog;
+
+                    ConsoleMessageEvent(this, a);
+                }
+            }
         }
 
         private void ParseNumeric(int numeric, string args)
@@ -831,6 +834,16 @@ namespace IRCLib
         }
 
         /// <summary>
+        ///  Removes the host mask and returns just the username
+        /// </summary>
+        /// <param name="fullName"></param>
+        /// <returns></returns>
+        //string TrimUsername(string fullName)
+        //{
+        //    string[] splits = fullName.Split('!')[0];
+        //}
+
+        /// <summary>
         /// NO LONGER USED
         /// </summary>
         /// <param name="channel"></param>
@@ -997,6 +1010,12 @@ namespace IRCLib
     /// </summary>
     public static class Numerics
     {
+        public static bool IsNumeric(string s)
+        {
+            int val = 0;
+            return int.TryParse(s, out val);
+        }
+
         /// <summary>
         /// "Welcome to the Internet Relay Network
         ///     <nick>!<user>@<host>"

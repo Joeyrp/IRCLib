@@ -92,8 +92,8 @@ namespace IRCLib
 
             // Connect
             //if (!server.Connect("irc.speedrunslive.com", 6667, "IRCLibTest1", ""))
-            //if (!server.Connect("irc.twitch.tv", 6667, tn, oauth))
-            if (!server.Connect("chat.freenode.net", 6667, "IRCLibTest1", ""))
+            if (!server.Connect("irc.twitch.tv", 6667, "guru_of_reason", "oauth:q0ogvkg5yys6aysexlzpar6h8xdeuf"))
+            //if (!server.Connect("chat.freenode.net", 6667, "IRCLibTest1", ""))
             {
                 DebugLogger.LogLine("Couldn't connect to the server.", "ExampleProgramLog.txt");
                 Console.WriteLine("Couldn't connect to the server: " + server.ConnectionInfo.serverAddress);

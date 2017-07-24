@@ -13,7 +13,7 @@ using System.Collections.Generic;
 
 // TODO: CTCP Version, Time and Ping
 // TODO: Improve user mode tracking (track each mode char "+q" etc.)
-// TODO: Implement more numerics
+// TODO: Implement more numeric events
 
 namespace IRCLib
 {
@@ -632,6 +632,7 @@ namespace IRCLib
         {
             switch (numeric)
             {
+                // Console events
                 #region NO SPECIAL ARGS NEEDED
 
                 case Numerics.RPL_WELCOME:
@@ -655,6 +656,7 @@ namespace IRCLib
 
                 #endregion
 
+                // Specific events
                 #region SPECIAL CASES
 
                 case Numerics.RPL_TOPIC:
@@ -800,7 +802,7 @@ namespace IRCLib
                 #endregion
 
 
-                // DEFAULT
+                // DEFAULT - Also sent as Console events
                 default:
                 {
                     consoleLog += "\n[UNHANDLED] " + args;

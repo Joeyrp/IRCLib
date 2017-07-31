@@ -128,8 +128,6 @@ namespace IRCLib
 
     public static class IRCNumerics
     {
-
-
         /// <summary>
         /// <client> :Welcome to the Internet Relay Network <nick>!<user>@<host>
         /// 

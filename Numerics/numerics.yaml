@@ -9,6 +9,9 @@
 # modify this file, please state your name and modifications here in order
 # for people to be able to distinguish between your version and this version.
 #
+# Modified by: Joey Pollack
+# Reason: Changed RPL_ENDOFO<MOTD to RPL_ENDOFO on line 3825
+#
 # For more information or corrections, please contact the author.
 
 file_info:
@@ -3819,7 +3822,7 @@ values:
         origin: Ultimate
 
     -
-        name: RPL_ENDOFO<MOTD
+        name: RPL_ENDOFO
         numeric: "626"
         origin: Ultimate
 

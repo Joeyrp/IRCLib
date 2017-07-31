@@ -26,7 +26,7 @@ namespace IRCLib
 
     public class IRCRoom
     {
-       public string Name = "";   // WITH PREFIX
+       public string Name = ""; 
        public string Modes = "";
         public string topic = "";
        public string roomLog = "";
@@ -139,10 +139,11 @@ namespace IRCLib
         /// <summary>
         /// Attempt to connect to the given server.
         /// </summary>
-        /// <param name="_serverAddress">eg. irc.speedrunslive.com</param>
+        /// <param name="_serverAddress">ex. irc.speedrunslive.com</param>
         /// <param name="_port">usually 6667</param>
         /// <param name="_nick">your nick</param>
         /// <param name="_password">your password if one is required</param>
+        /// <param name="_name">your name (optional)</param>
         /// <returns>true if the connection is successful. False if there is already a connection or the connection failed. 
         /// There may be more info in the log file.</returns>
         public bool Connect(string _serverAddress, int _port, string _nick, string _password, string _name = "Default")

@@ -102,7 +102,6 @@ namespace IRCLib
 
             outputStream.WriteLine("NICK " + connectionInfo.nick);
             outputStream.Flush();
-            // NOTE: Hardcoded personal value
             outputStream.WriteLine("USER 0 " + connectionInfo.nick + " * :" + name);
             outputStream.Flush();
 

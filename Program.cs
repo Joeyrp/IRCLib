@@ -2,7 +2,7 @@
 *	File		-	Program.cs
 *	Author		-	Joey Pollack
 *	Date		-	11/19/2015 (m/d/y)
-*	Mod Date	-	7/14/2017 (m/d/y)
+*	Mod Date	-	7/31/2017 (m/d/y)
 *	Description	-	Contains IRCLib usage examples
 ******************************************************************************/
 using System;
@@ -20,6 +20,7 @@ namespace IRCLib
             DebugLogger.LogLine("", true);
             DebugLogger.LogLine("\tNEW INSTANCE STARTED\n");
             DebugLogger.LogLine("", true);
+
 
             //////////////////////////////////////////////////
             //      EXAMPLE IRCLib USAGE
@@ -74,7 +75,7 @@ namespace IRCLib
             // NOTE: This is a fairly bare-bones example of how to use the IRCServer class.
             //       It covers all of the main features even if the result isn't very usable.
             //       The most correct way to set up an event loop would be to put the IRCServer
-            //       (specifically the server.PollServer() method) and the user input on 2 separate threads.
+            //       and the user input on 2 separate threads.
 
             IRCServer server = new IRCServer();
 
@@ -220,13 +221,13 @@ namespace IRCLib
         // Any numeric (or other response) that does not have an event associated with it will be sent here
         static void ConsoleEvent(object sender, IRCConsoleMsgArgs args)
         {
-            if (Numerics.RPL_ENDOFNAMES == args.numeric)
+            if (IRCNumerics.RPL_ENDOFNAMES == args.numeric)
                 return;
 
             // The Twitch.tv server has extra capabilities that need to be
             // explicitly requested. This can be done when the Welcome message
             // is received.
-            if (Numerics.RPL_WELCOME == args.numeric)
+            if (IRCNumerics.RPL_WELCOME == args.numeric)
             {
                 IRCServer server = (IRCServer)sender;
                 if (server.ConnectionInfo.serverAddress == "irc.twitch.tv")

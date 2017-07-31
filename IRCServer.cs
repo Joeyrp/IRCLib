@@ -2,7 +2,7 @@
 *	File		-	IRCServer.cs
 *	Author		-	Joey Pollack
 *	Date		-	11/23/2015 (m/d/y)
-*	Mod Date	-	7/14/2017 (m/d/y)
+*	Mod Date	-	7/31/2017 (m/d/y)
 *	Description	-	Wrapper for IRCServerConnection that parses the raw
 *	                server output and sends the information as events. Also 
 *	                has methods for easily sending common messages to the server.
@@ -13,7 +13,6 @@ using System.Collections.Generic;
 
 // TODO: CTCP Version, Time and Ping
 // TODO: Improve user mode tracking (track each mode char "+q" etc.)
-// TODO: Implement more numeric events
 
 namespace IRCLib
 {
@@ -272,9 +271,9 @@ namespace IRCLib
         {
             string command = "";
             if (asNotice)
-                command = "PRIVMSG " + target + " :" + msg;
-            else
                 command = "NOTICE " + target + " :" + msg;
+            else
+                command = "PRIVMSG " + target + " :" + msg;
 
             SendRawCommand(command);
         }
@@ -628,197 +627,191 @@ namespace IRCLib
             }
         }
 
+
         private void ParseNumeric(int numeric, string args)
         {
-            switch (numeric)
+            
+            // Console events
+            #region NO SPECIAL ARGS NEEDED
+
+            if (IRCNumerics.RPL_WELCOME == numeric ||
+                IRCNumerics.RPL_YOURHOST == numeric ||
+                IRCNumerics.RPL_CREATED == numeric ||
+                IRCNumerics.RPL_MYINFO == numeric) 
             {
-                // Console events
-                #region NO SPECIAL ARGS NEEDED
+                consoleLog += "\n" + args;
 
-                case Numerics.RPL_WELCOME:
-                case Numerics.RPL_YOURHOST:
-                case Numerics.RPL_CREATED:
-                case Numerics.RPL_MYINFO:
+                if (ConsoleMessageEvent != null)
                 {
-                    consoleLog += "\n" + args;
+                    IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
+                    a.numeric = numeric;
+                    a.text = args;
 
-                    if (ConsoleMessageEvent != null)
-                    {
-                        IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
-                        a.numeric = numeric;
-                        a.text = args;
-
-                        ConsoleMessageEvent(this, a);
-                    }
+                    ConsoleMessageEvent(this, a);
                 }
-                break;
-
-
-                #endregion
-
-                // Specific events
-                #region SPECIAL CASES
-
-                case Numerics.RPL_TOPIC:
-                    {
-                        consoleLog += "\n" + args;
-                        IRCTopicArgs a = new IRCTopicArgs();
-                        //a.channel = args.Split('#')[1].Split(' ')[0];
-                        a.channel = args.Split(' ')[1];
-                        string[] topicParts = args.Split(':');
-
-                        for (int i = 1; i < topicParts.Length; i++)
-                        {
-                            a.topic += topicParts[i] + ":";
-                        }
-                        a.topic = a.topic.TrimEnd(':');
-
-                        a.byUser = "";
-                        a.date = -1;
-
-                        foreach (IRCRoom ch in channels)
-                        {
-                            if (ch.Name == a.channel)
-                            {
-                                ch.topic = a.topic;
-                                break;
-                            }
-                        }
-                        
-
-                       if (ShowTopicEvent != null)
-                        {
-                            ShowTopicEvent(this, a);
-                        }
-                }
-                break;
-
-                case Numerics.RPL_TOPICP2:
-                    {
-                        consoleLog += "\n" + args;
-
-                        string[] splitArgs = args.Split(' ');
-                        if (splitArgs.Length < 4)
-                        {
-                            DebugLogger.LogLine("ERROR - Numerics.RPL_TOPIC2 - Not enought args to process event: " + args);
-                            break;
-                        }
-
-                        IRCTopicArgs a = new IRCTopicArgs();
-                        a.channel = splitArgs[1];
-                        a.topic = "";
-                        a.byUser = splitArgs[2];
-
-                        if (!long.TryParse(splitArgs[3], out a.date))
-                        {
-                            DebugLogger.LogLine("ERROR - Numerics.RPL_TOPIC2 - Couldn't parse the date the topic was set in channel: " + a.channel);
-                            return;
-                        }
-
-                        if (ShowTopicEvent != null)
-                        {
-                            ShowTopicEvent(this, a);
-                        }
-                    }
-                break;
-
-                case Numerics.RPL_NAMREPLY:
-                    {
-                        consoleLog += "\n" + args;
-                        IRCNamesArgs a = new IRCNamesArgs();
-                        a.channel = args.Split(' ')[2];
-                        string[] nicks = args.Split(':')[1].Split(' ');
-
-                        
-                        foreach (IRCRoom r in channels)
-                        {
-                            if (r.Name == a.channel)
-                            {
-                                r.nickList.Clear();
-                                foreach (string n in nicks)
-                                {
-                                    IRCUser user = new IRCUser();
-                                    user.nick = n;
-                                    IRCUser.USERMODES mode = GetModeFromPrefix(n[0].ToString());
-                                    if (mode != IRCUser.USERMODES.INVALID)
-                                        user.modes.Add(mode);
-
-                                    r.nickList.Add(user);
-                                    a.names.Add(n);
-                                }
-                                break;
-                            }
-                        }
-
-                        if (NamesEvent != null)
-                        {
-                            NamesEvent(this, a);
-                        }
-                }
-                break;
-
-                case Numerics.RPL_CHANNELMODEIS:
-                {
-                    consoleLog += "\n" + args;
-                    IRCChannelModeArgs a = new IRCChannelModeArgs();
-                    a.channel = args.Split(' ')[1];
-                    a.modes = args.Split(' ')[2];
-                    a.settingUser = "";
-
-                    foreach (IRCRoom channel in Channels)
-                    {
-                        if (channel.Name == a.channel)
-                        {
-                            channel.Modes = a.modes.TrimStart('+');
-                        }
-                    }
-
-                    if (ChannelModeEvent != null)
-                    {
-                        ChannelModeEvent(this, a);
-                    }
-                }
-                break;
-
-                case Numerics.RPL_CREATIONTIME:
-                {
-                     consoleLog += "\n" + args;
-
-                        IRCChannelCreationArgs a = new IRCChannelCreationArgs();
-                        a.channel = args.Split(' ')[1];
-
-                        if (!long.TryParse(args.Split(' ')[2], out a.date))
-                        {
-                            DebugLogger.LogLine("Couldn't parse the date the channel was created on: #" + a.channel);
-                            return;
-                        }
-
-                        if (ChannelCreationEvent != null)
-                        {
-                            ChannelCreationEvent(this, a);
-                        }
-                    }
-                break;
-                #endregion
-
-
-                // DEFAULT - Also sent as Console events
-                default:
-                {
-                    consoleLog += "\n[UNHANDLED] " + args;
-
-                    if (ConsoleMessageEvent != null)
-                    {
-                        IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
-                        a.numeric = numeric;
-                        a.text = args;
-                        a.fullConsoleLog = consoleLog;
-
-                        ConsoleMessageEvent(this, a);
-                    }
-                }
-                break;
             }
+
+
+            #endregion
+
+            // Specific events
+            #region SPECIAL CASES
+
+            else if (IRCNumerics.RPL_TOPIC == numeric)
+            {
+                consoleLog += "\n" + args;
+                IRCTopicArgs a = new IRCTopicArgs();
+                //a.channel = args.Split('#')[1].Split(' ')[0];
+                a.channel = args.Split(' ')[1];
+                string[] topicParts = args.Split(':');
+
+                for (int i = 1; i < topicParts.Length; i++)
+                {
+                    a.topic += topicParts[i] + ":";
+                }
+                a.topic = a.topic.TrimEnd(':');
+
+                a.byUser = "";
+                a.date = -1;
+
+                foreach (IRCRoom ch in channels)
+                {
+                    if (ch.Name == a.channel)
+                    {
+                        ch.topic = a.topic;
+                        break;
+                    }
+                }
+                        
+
+                if (ShowTopicEvent != null)
+                {
+                    ShowTopicEvent(this, a);
+                }
+            }
+
+            else if (IRCNumerics.RPL_TOPICWHOTIME == numeric)
+            {
+                consoleLog += "\n" + args;
+
+                string[] splitArgs = args.Split(' ');
+                if (splitArgs.Length < 4)
+                {
+                    DebugLogger.LogLine("ERROR - Numerics.RPL_TOPIC2 - Not enought args to process event: " + args);
+                }
+                else
+                {
+                    IRCTopicArgs a = new IRCTopicArgs();
+                    a.channel = splitArgs[1];
+                    a.topic = "";
+                    a.byUser = splitArgs[2];
+
+                    if (!long.TryParse(splitArgs[3], out a.date))
+                    {
+                        DebugLogger.LogLine("ERROR - Numerics.RPL_TOPIC2 - Couldn't parse the date the topic was set in channel: " + a.channel);
+                        return;
+                    }
+
+                    if (ShowTopicEvent != null)
+                    {
+                        ShowTopicEvent(this, a);
+                    }
+                }
+            }
+
+            else if (IRCNumerics.RPL_NAMREPLY == numeric)
+            {
+                consoleLog += "\n" + args;
+                IRCNamesArgs a = new IRCNamesArgs();
+                a.channel = args.Split(' ')[2];
+                string[] nicks = args.Split(':')[1].Split(' ');
+
+                        
+                foreach (IRCRoom r in channels)
+                {
+                    if (r.Name == a.channel)
+                    {
+                        r.nickList.Clear();
+                        foreach (string n in nicks)
+                        {
+                            IRCUser user = new IRCUser();
+                            user.nick = n;
+                            IRCUser.USERMODES mode = GetModeFromPrefix(n[0].ToString());
+                            if (mode != IRCUser.USERMODES.INVALID)
+                                user.modes.Add(mode);
+
+                            r.nickList.Add(user);
+                            a.names.Add(n);
+                        }
+                        break;
+                    }
+                }
+
+                if (NamesEvent != null)
+                {
+                    NamesEvent(this, a);
+                }
+            }
+
+            else if (IRCNumerics.RPL_CHANNELMODEIS == numeric)
+            {
+                consoleLog += "\n" + args;
+                IRCChannelModeArgs a = new IRCChannelModeArgs();
+                a.channel = args.Split(' ')[1];
+                a.modes = args.Split(' ')[2];
+                a.settingUser = "";
+
+                foreach (IRCRoom channel in Channels)
+                {
+                    if (channel.Name == a.channel)
+                    {
+                        channel.Modes = a.modes.TrimStart('+');
+                    }
+                }
+
+                if (ChannelModeEvent != null)
+                {
+                    ChannelModeEvent(this, a);
+                }
+            }
+
+            else if (IRCNumerics.RPL_CREATIONTIME == numeric)
+            {
+                    consoleLog += "\n" + args;
+
+                IRCChannelCreationArgs a = new IRCChannelCreationArgs();
+                a.channel = args.Split(' ')[1];
+
+                if (!long.TryParse(args.Split(' ')[2], out a.date))
+                {
+                    DebugLogger.LogLine("Couldn't parse the date the channel was created on: #" + a.channel);
+                    return;
+                }
+
+                if (ChannelCreationEvent != null)
+                {
+                    ChannelCreationEvent(this, a);
+                }
+            }
+            #endregion
+
+
+            // DEFAULT - Also sent as Console events
+            else
+            {
+                consoleLog += "\n[UNHANDLED] " + args;
+
+                if (ConsoleMessageEvent != null)
+                {
+                    IRCConsoleMsgArgs a = new IRCConsoleMsgArgs();
+                    a.numeric = numeric;
+                    a.text = args;
+                    a.fullConsoleLog = consoleLog;
+
+                    ConsoleMessageEvent(this, a);
+                }
+            }
+            
         }
 
         #region HELPER METHODS
@@ -1004,87 +997,5 @@ namespace IRCLib
         public long date;
     }
 
-    #endregion
-
-    #region NUMERIC SERVER MESSAGES
-    /// <summary>
-    /// These numeric server messages are implemented unless otherwise noted.
-    /// </summary>
-    public static class Numerics
-    {
-        public static bool IsNumeric(string s)
-        {
-            int val = 0;
-            return int.TryParse(s, out val);
-        }
-
-        /// <summary>
-        /// "Welcome to the Internet Relay Network
-        ///     <nick>!<user>@<host>"
-        /// </summary>
-        public const int RPL_WELCOME = 001;
-
-        /// <summary>
-        /// "Your host is <servername>, running version <ver>"
-        /// </summary>
-        public const int RPL_YOURHOST = 002;
-
-        /// <summary>
-        /// "This server was created <date>"
-        /// </summary>
-        public const int RPL_CREATED = 003;
-
-        /// <summary>
-        /// "<servername> <version> <available user modes>
-        ///    <available channel modes>"
-        /// </summary>
-        public const int RPL_MYINFO = 004;
-
-        /// <summary>
-        /// NOT IMPLEMENTED
-        /// "<channel> <# visible> :<topic>"
-        /// </summary>
-        public const int RPL_LIST = 322;
-
-        /// <summary>
-        /// NOT IMPLEMENTED
-        /// ":End of LIST"
-        /// </summary>
-        public const int RPL_LISTEND = 323;
-
-        /// <summary>
-        /// <channel> +<modes>
-        /// </summary>
-        public const int RPL_CHANNELMODEIS = 324;
-
-        /// <summary>
-        /// <channel> <date>
-        /// </summary>
-        public const int RPL_CREATIONTIME = 329;
-
-        /// <summary>
-        /// "<channel> :<topic>"
-        /// </summary>
-        public const int RPL_TOPIC = 332;
-
-        /// <summary>
-        /// "<channel> <user> <date>"
-        /// </summary>
-        public const int RPL_TOPICP2 = 333;
-
-        /// <summary>
-        /// "( "=" / "*" / "@" ) <channel>
-        ///      :[ "@" / "+" ] <nick> *( " " [ "@" / "+" ] <nick> )
-        /// - "@" is used for secret channels, "*" for private
-        //   channels, and "=" for others(public channels).
-        /// </summary>
-        public const int RPL_NAMREPLY = 353;
-
-        /// <summary>
-        /// "<channel> :End of NAMES list"
-        /// </summary>
-        public const int RPL_ENDOFNAMES = 366;
-
-    }
     #endregion
 }

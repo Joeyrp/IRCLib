@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="DebugLogger.cs" />
     <Compile Include="IRCInputStream.cs" />
+    <Compile Include="IRCNumerics.cs" />
     <Compile Include="IRCServer.cs" />
     <Compile Include="IRCServerConnection.cs" />
     <Compile Include="Program.cs" />

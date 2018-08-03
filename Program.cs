@@ -94,7 +94,7 @@ namespace IRCLib
             // Connect
             //if (!server.Connect("irc.speedrunslive.com", 6667, "IRCLibTest1", ""))
             //if (!server.Connect("irc.twitch.tv", 6667, tn, oauth))
-            if (!server.Connect("chat.freenode.net", 6667, "IRCLibTest1", ""))
+            if (!server.Connect("guruofreason.com", 6667, "IRCLibTest1", ""))
             {
                 DebugLogger.LogLine("Couldn't connect to the server.", "ExampleProgramLog.txt");
                 Console.WriteLine("Couldn't connect to the server: " + server.ConnectionInfo.serverAddress);
@@ -212,10 +212,20 @@ namespace IRCLib
         #region EVENT HANDLERS
         static void MessageEvent(object sender, IRCMessageArgs args)
         {
-            if (args.isNotice)
-                Console.WriteLine("*" + args.channel + "* -" + args.fromUser + "- " + args.text);
+            if (args.room != null)
+            {
+                if (args.isNotice)
+                    Console.WriteLine("*" + args.channel + "* -" + args.fromUser + "- " + args.text);
+                else
+                    Console.WriteLine("*" + args.channel + "* <" + args.fromUser + "> " + args.text);
+            }
             else
-                Console.WriteLine("*" + args.channel + "* <" + args.fromUser + "> " + args.text);
+            {
+                if (args.isNotice)
+                    Console.WriteLine("*" + args.fromUser + "* " + args.text);
+                else
+                    Console.WriteLine("<" + args.fromUser + "> " + args.text);
+            }
         }
 
         // Any numeric (or other response) that does not have an event associated with it will be sent here

@@ -112,12 +112,12 @@ namespace IRCLib
         /// <summary>
         /// Peace out server.
         /// </summary>
-        public void Disconnect()
+        public void Disconnect(string quitMsg = "")
         {
             if (!connected)
                 return;
 
-            outputStream.WriteLine("QUIT");
+            outputStream.WriteLine("QUIT " + quitMsg);
             outputStream.Flush();
 
           //  inputStream.Close();

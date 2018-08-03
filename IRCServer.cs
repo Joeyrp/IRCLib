@@ -152,12 +152,13 @@ namespace IRCLib
             return connection.Connect(_serverAddress, _port, _nick, _password, _name);
         }
 
-        public void Disconnect()
+        public void Disconnect(string quitMsg = "IRCLib by Joey Pollack")
         {
             if (connection.IsConnected)
             {
                 DebugLogger.LogLine("Server Disconnecting", "IRCServer full log.txt");
-                connection.Disconnect();
+                // SendRawCommand("QUIT IRCLib by Joey Pollack");
+                connection.Disconnect(quitMsg);
                 channels.Clear();
                 consoleLog = "";
             }
@@ -587,10 +588,13 @@ namespace IRCLib
                 text = text.TrimEnd(' ');
                 text = text.TrimStart(':');
 
+                // Does this message go to a channel?
+                bool toChan = false;
                 foreach (IRCRoom room in channels)
                 {
                     if (room.Name == ch)
                     {
+                        toChan = true;
                         user = GetUserFromList(room.nickList, user);
                         room.roomLog += "\n<" + user + "> " + text;
 
@@ -607,6 +611,21 @@ namespace IRCLib
                             MessageEvent(this, ma);
                         }
                         break;
+                    }
+                }
+
+                if (!toChan)
+                {
+                    if (MessageEvent != null)
+                    {
+                        IRCMessageArgs ma = new IRCMessageArgs();
+                        ma.channel = ch;
+                        ma.fromUser = user;
+                        ma.text = text;
+                        ma.room = null;
+                        ma.isNotice = ("NOTICE" == cmd) ? true : false;
+
+                        MessageEvent(this, ma);
                     }
                 }
             }

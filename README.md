@@ -1,3 +1,7 @@
+# IRCLib #
+
+[![Build status](https://ci.appveyor.com/api/projects/status/mk42tkadbkh1c693/branch/master?svg=true)](https://ci.appveyor.com/project/Joeyrp/irclib/branch/master)
+
 This is a basic C# library for connecting to IRC networks.
 It only has a bare-mimimum of features but it might be useful as a starting point or for learning.
 

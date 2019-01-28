@@ -157,7 +157,6 @@ namespace IRCLib
             if (connection.IsConnected)
             {
                 DebugLogger.LogLine("Server Disconnecting", "IRCServer full log.txt");
-                // SendRawCommand("QUIT IRCLib by Joey Pollack");
                 connection.Disconnect(quitMsg);
                 channels.Clear();
                 consoleLog = "";

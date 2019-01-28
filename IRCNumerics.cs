@@ -10,6 +10,9 @@
 *	                values with a name in a static class instance. This instance
 *	                can be directly compared to int values 
 *	                ex. if (IRCNumerics.RPL_WELCOME == 1) 
+*	                
+*	               This file was generated using a python script: YAMLtoCS.py
+*	               which is included in this project
 ******************************************************************************/
 using System;
 
